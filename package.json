@@ -1,0 +1,14 @@
+{
+  "name": "morse-code-game",
+  "version": "1.0.0",
+  "description": "A cross-platform, window-based, text-based Morse Code game using Electron.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.3"
+  }
+}

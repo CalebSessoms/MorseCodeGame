@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=800, initial-scale=1.0">
+  <title>Morse Code Game</title>
+  <style>
+        #button-row {
+          display: flex !important;
+          flex-direction: row !important;
+          gap: 1em;
+          align-items: flex-start;
+          margin-top: 2em;
+          justify-content: flex-start;
+        }
+    body { font-family: Arial, sans-serif; margin: 40px; background: #222; color: #eee; }
+    h1 { color: #ffb300; }
+    .container { max-width: 600px; margin: auto; background: #333; padding: 2em; border-radius: 10px; }
+    #options-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1em;
+      margin-top: 1em;
+    }
+    .option-btn {
+      background: #444;
+      color: #ffb300;
+      border: none;
+      border-radius: 6px;
+      padding: 1em 1.5em;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, transform 0.1s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .option-btn:hover {
+      background: #ffb300;
+      color: #222;
+      transform: translateY(-2px) scale(1.03);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Morse Code Game</h1>
+    <div id="game-text" style="margin-bottom:1.5em;"></div>
+    <div id="options-container"></div>
+    <div id="inventory-grid-container" style="display:none; margin: 2em 0 0 0; max-width: 400px;"></div>
+    <div id="messages-grid-container" style="display:none; margin: 2em 0 0 0; max-width: 400px;"></div>
+  </div>
+  <div id="button-row" style="display: flex; flex-direction: row; gap: 1em; align-items: flex-start; margin-top: 2em;">
+    <button id="inventory-btn" class="option-btn" style="background:#222; color:#fff; border:1px solid #ffb300;">Inventory</button>
+    <button id="close-inventory-btn" class="option-btn" style="display:none; background:#222; color:#fff; border:1px solid #ffb300;">Close Inventory</button>
+    <button id="messages-btn" class="option-btn" style="background:#222; color:#fff; border:1px solid #ffb300;">Messages</button>
+  </div>
+  <script>
+    // Expose require for Electron renderer
+    window.require = require;
+  </script>
+  <script>
+    // Import modules
+    const playerOptions = require('./playerOptions');
+    const uiManager = require('./uiManager');
+    const inventoryManager = require('./inventoryManager');
+    const messagesManager = require('./messagesManager');
+    require('./gameManager');
+    // Start the game when DOM is ready
+    window.onload = () => {
+      const invBtn = document.getElementById('inventory-btn');
+      const closeInvBtn = document.getElementById('close-inventory-btn');
+      const messagesBtn = document.getElementById('messages-btn');
+      invBtn.onclick = () => {
+        // Hide messages if open
+        messagesManager.closeMessages();
+        inventoryManager.openInventory();
+      };
+      closeInvBtn.onclick = () => inventoryManager.closeInventory();
+      messagesBtn.onclick = () => {
+        // Hide inventory if open
+        inventoryManager.closeInventory();
+        messagesManager.openMessages();
+      };
+      window.startGame();
+    };
+  </script>
+</body>
+</html>
