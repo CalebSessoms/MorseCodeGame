@@ -1,6 +1,7 @@
 // gameManager.js
 // Handles the main gameplay flow and testing of player options and UI
 const { log } = require('./debugLogger');
+const { showNotification } = require('./notification');
 
 const { debugAllPlayerOptions, createPlayerOption, removePlayerOption, editPlayerOption, getPlayerOptions, clearPlayerOptions } = require('./playerOptions');
 const { addItem, hasItem } = require('./inventoryManager');
@@ -14,10 +15,13 @@ let hasTakenKey = false;
 // Removed: let hasExaminedBasementDoor = false;
 // Track the state of the basement door: 'locked', 'readyToUnlock', 'unlocked', 'open' (future-proof)
 let basementDoorState = 'locked';
+let breakerPosition = 'off';
+let telegraphAvailable = false;
 
 function startGame() {
   // Narrative intro: grandfather's house
   updateGameText("You wake up in your grandfather's house. The morning is quiet, the old clock ticking in the hallway.");
+  showNotification("Congratulations on starting the game!", "achievement");
   clearPlayerOptions();
   // Present a button for the player to look outside (triggering the alarm/announcement)
   const lookBtn = createPlayerOption('Look outside', () => {
@@ -56,6 +60,7 @@ function showRoomOptions() {
         const takeKey = createPlayerOption('Take the key', () => {
           hasTakenKey = true;
           addItem('Small Brass Key');
+          showNotification("You have taken the Small Brass Key.", "inventory");
           updateGameText("You carefully peel the key from behind the photo. It's small, brass, and cold to the touch. You slip it into your pocket.\n\nYou are in the living room. The old furniture and family photos give the room a warm, nostalgic feeling.");
             // Remove the take key option after taking it
             removePlayerOption('Take the key');
@@ -148,19 +153,58 @@ function showRoomOptions() {
         });
     }
 } else if (currentRoom === 'basement') {
-    let desc = "You are in the basement. The air is damp and musty, and the faint sound of dripping water echoes around you.";
-    if(hasItem('Flashlight')) {
-
-    } else {
-        desc += " It's quite dark down here. You might need a light source to see better.";
-    }
-    updateGameText(desc);
     clearPlayerOptions();
+    
     const toKitchen = createPlayerOption('Go to the kitchen', () => {
       currentRoom = 'kitchen';
       showRoomOptions();
     });
+
+    let desc = "You are in the basement. The air is damp and musty, and the faint sound of dripping water echoes around you.";
+    if(telegraphAvailable) {
+        desc += " A telegraph machine sits on a crate, its keys worn but functional.";
+    } else {
+    if (breakerPosition === 'on') {
+      desc += " The basement is illuminated by a flickering overhead light.";
+      const breakerBox = createPlayerOption('Check the breaker box', () => {
+          updateGameText("You approach the breaker box. The switches are all in the 'on' position, and the basement is already illuminated by the overhead light.\n\n");
+      });
+      const searchBasement = createPlayerOption('Search the basement', () => {
+        removePlayerOption('Search the basement');
+        updateGameText(" You search the basement. Amidst the old furniture and boxes, you find some useful tools and supplies that might come in handy later. Additionally there appears to be a loose shelf in the back\n\n");
+        const checkShelf = createPlayerOption('Check the loose shelf', () => {
+            updateGameText("You check the loose shelf and find a hidden compartment containing a telegraph machine. This could be useful for sending messages if other communication methods fail.\n\n");
+            telegraphAvailable = true;
+            showNotification("You have found a telegraph machine!", "notification");
+            clearPlayerOptions();
+        });
+      });
+    } else {
+      if (!hasItem('Flashlight')) {
+        desc += " It's pitch dark, and you can barely see anything. You might need a light source to navigate here safely.";
+      } else {
+        desc += " With your flashlight, you can see around the basement despite the darkness.";
+        const breakerBox = createPlayerOption('Check the breaker box', () => {
+          removePlayerOption('Check the breaker box');
+          removePlayerOption('Check the basement');
+            updateGameText("You approach the breaker box. Most of the switches are labeled, but one is unlabeled and seems to be in the 'off' position. Flipping it might restore power to the basement.\n\n");
+            const flipSwitch = createPlayerOption('Flip the unlabeled switch', () => {
+              updateGameText("You flip the switch. A low hum fills the basement as the lights flicker on, illuminating the space. You can now see old furniture, boxes, and some tools scattered around.\n\n");
+              removePlayerOption('Flip the unlabeled switch');
+              breakerPosition = 'on';
+              showRoomOptions();
+            });
+        });
+      }
+    }
+  }
+
     
+
+    
+    updateGameText(desc);
+
+
   } else if (currentRoom === 'study') {
     let desc = "You are in the study. Books line the shelves, their spines cracked and faded. A heavy desk sits by the window, covered in papers and an old lamp.";
     updateGameText(desc);
@@ -175,6 +219,7 @@ function showRoomOptions() {
         } else {
             updateGameText("You rummage through the desk drawers. Most are filled with old bills and letters, but you find a dusty but working flashlight.\n\n");
             addItem('Flashlight');
+            showNotification("You have acquired a Flashlight.", "inventory");
         }
     });
     const checkBooks = createPlayerOption('Browse the bookshelves', () => {

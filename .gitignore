@@ -8,8 +8,12 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+
 # Electron build output
 dist/
+
+# Release artifacts
+releases/
 
 # Environment files
 .env
