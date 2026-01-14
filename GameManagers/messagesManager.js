@@ -11,15 +11,41 @@ function openMessages() {
 
   // Hide player options
   hidePlayerOptions();
+  // Hide main game area
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'none';
 
   // Show messages grid
   const messagesGrid = document.getElementById('messages-grid-container');
-  messagesGrid.innerHTML = '';
   messagesGrid.style.display = 'block';
-  // Blank area for future messages
-  const blank = document.createElement('div');
-  blank.style.height = '120px';
-  messagesGrid.appendChild(blank);
+  // Show toggle row and sections
+  const encryptedBtn = document.getElementById('encrypted-btn');
+  const decryptedBtn = document.getElementById('decrypted-btn');
+  const encryptedSection = document.getElementById('encrypted-messages-section');
+  const decryptedSection = document.getElementById('decrypted-messages-section');
+  if (encryptedBtn && decryptedBtn && encryptedSection && decryptedSection) {
+    encryptedBtn.onclick = () => {
+      encryptedSection.style.display = 'block';
+      decryptedSection.style.display = 'none';
+      encryptedBtn.style.background = '#ffb300';
+      encryptedBtn.style.color = '#222';
+      decryptedBtn.style.background = '#333';
+      decryptedBtn.style.color = '#fff';
+    };
+    decryptedBtn.onclick = () => {
+      encryptedSection.style.display = 'none';
+      decryptedSection.style.display = 'block';
+      decryptedBtn.style.background = '#ffb300';
+      decryptedBtn.style.color = '#222';
+      encryptedBtn.style.background = '#333';
+      encryptedBtn.style.color = '#fff';
+    };
+    // Default to encrypted view
+    encryptedBtn.click();
+  }
+
+  // Render messages in the sections
+  renderMessagesSections();
 
   // Show/hide correct buttons in button row
   const invBtn = document.getElementById('inventory-btn');
@@ -61,6 +87,9 @@ function openMessages() {
 
 function closeMessages() {
   document.getElementById('messages-grid-container').style.display = 'none';
+  // Show main game area again
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'block';
   // Show player options again
   showPlayerOptions();
   // Restore button row to default (Inventory, Messages)
@@ -74,6 +103,24 @@ function closeMessages() {
   messagesBtn.style.display = 'inline-block';
   if (closeMessagesBtn) closeMessagesBtn.style.display = 'none';
   if (invMessagesBtn) invMessagesBtn.style.display = 'none';
+}
+
+// Render messages in the encrypted and decrypted sections
+function renderMessagesSections() {
+  const encryptedSection = document.getElementById('encrypted-messages-section');
+  const decryptedSection = document.getElementById('decrypted-messages-section');
+  if (!encryptedSection || !decryptedSection) return;
+  // For now, just show a placeholder if empty
+  if (messages.length === 0) {
+    encryptedSection.innerHTML = '<div style="color:#888;">No encrypted messages yet.</div>';
+    decryptedSection.innerHTML = '<div style="color:#888;">No decrypted messages yet.</div>';
+    return;
+  }
+  // Example: split messages by a property (future: encrypted/decrypted)
+  const encryptedMsgs = messages.filter(m => m.encrypted !== false);
+  const decryptedMsgs = messages.filter(m => m.encrypted === false);
+  encryptedSection.innerHTML = encryptedMsgs.length ? encryptedMsgs.map(m => `<div style='margin-bottom:0.5em;'>${m.text}</div>`).join('') : '<div style="color:#888;">No encrypted messages yet.</div>';
+  decryptedSection.innerHTML = decryptedMsgs.length ? decryptedMsgs.map(m => `<div style='margin-bottom:0.5em;'>${m.text}</div>`).join('') : '<div style="color:#888;">No decrypted messages yet.</div>';
 }
 
 

@@ -91,18 +91,25 @@ function openInventory() {
   // Hide all player options while inventory is open
   hidePlayerOptions();
   debugAllPlayerOptions();
+  // Hide main game area
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'none';
   // Show/hide inventory and close-inventory buttons
   const invBtn = document.getElementById('inventory-btn');
   const closeInvBtn = document.getElementById('close-inventory-btn');
   if (invBtn) invBtn.style.display = 'none';
   if (closeInvBtn) closeInvBtn.style.display = 'block';
-  updateGameText('Inventory:');
-  // Show inventory grid
+  // Show inventory area and grid
+  const invArea = document.getElementById('inventory-area');
+  if (invArea) invArea.style.display = 'block';
   renderInventoryGrid();
 }
 
 function closeInventory() {
   inventoryOpen = false;
+  // Show main game area again
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'block';
   updateGameText(previousGameText);
   // Only use showPlayerOptions to reveal player options
   showPlayerOptions();
@@ -112,9 +119,11 @@ function closeInventory() {
   const closeInvBtn = document.getElementById('close-inventory-btn');
   if (invBtn) invBtn.style.display = 'block';
   if (closeInvBtn) closeInvBtn.style.display = 'none';
-  // Hide inventory grid
+  // Hide inventory area and grid
+  const invArea = document.getElementById('inventory-area');
+  if (invArea) invArea.style.display = 'none';
   const grid = document.getElementById('inventory-grid-container');
-  if (grid) grid.style.display = 'none';
+  if (grid) grid.style.display = 'grid';
 }
 // Render the inventory grid UI
 function renderInventoryGrid() {

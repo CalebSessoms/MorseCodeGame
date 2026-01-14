@@ -44,10 +44,21 @@
 <body>
   <div class="container">
     <h1>Morse Code Game</h1>
-    <div id="game-text" style="margin-bottom:1.5em;"></div>
-    <div id="options-container"></div>
-    <div id="inventory-grid-container" style="display:none; margin: 2em 0 0 0; max-width: 400px;"></div>
-    <div id="messages-grid-container" style="display:none; margin: 2em 0 0 0; max-width: 400px;"></div>
+    <div id="game-main-area" style="border:2px solid #ffb300; border-radius:10px; min-height:120px; margin-bottom:1.5em; padding:1em; background:#292929;">
+      <div id="game-text" style="margin-bottom:1.5em;"></div>
+      <div id="options-container"></div>
+    </div>
+    <div id="inventory-area" style="display:none; border:2px solid #ffb300; border-radius:10px; min-height:260px; margin: 2em 0 0 0; max-width: 400px; padding:1em; background:#292929;">
+      <div id="inventory-grid-container"></div>
+    </div>
+    <div id="messages-grid-container" style="display:none; border:2px solid #ffb300; border-radius:10px; min-height:180px; margin: 2em 0 0 0; max-width: 400px; padding:1em; background:#292929;">
+      <div id="messages-toggle-row" style="display:flex; gap:1em; margin-bottom:1em;">
+        <button id="encrypted-btn" class="option-btn" style="background:#333; color:#fff; border:1px solid #ffb300;">Encrypted</button>
+        <button id="decrypted-btn" class="option-btn" style="background:#333; color:#fff; border:1px solid #ffb300;">Decrypted</button>
+      </div>
+      <div id="encrypted-messages-section" style="display:block;"></div>
+      <div id="decrypted-messages-section" style="display:none;"></div>
+    </div>
   </div>
   <div id="button-row" style="display: flex; flex-direction: row; gap: 1em; align-items: flex-start; margin-top: 2em;">
     <button id="inventory-btn" class="option-btn" style="background:#222; color:#fff; border:1px solid #ffb300;">Inventory</button>
@@ -67,13 +78,13 @@
       const closeInvBtn = document.getElementById('close-inventory-btn');
       const messagesBtn = document.getElementById('messages-btn');
       invBtn.onclick = () => {
-        // Hide messages if open
         messagesManager.closeMessages();
         inventoryManager.openInventory();
       };
-      closeInvBtn.onclick = () => inventoryManager.closeInventory();
+      closeInvBtn.onclick = () => {
+        inventoryManager.closeInventory();
+      };
       messagesBtn.onclick = () => {
-        // Hide inventory if open
         inventoryManager.closeInventory();
         messagesManager.openMessages();
       };
