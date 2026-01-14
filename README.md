@@ -31,6 +31,3 @@ This will open a window with the game interface.
 
 ## Contributing
 Pull requests and suggestions are welcome!
-
-## License
-MIT
