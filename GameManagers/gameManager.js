@@ -304,7 +304,7 @@ function addShoppingOptions() {
 }
 
 const { getInventory } = require('./inventoryManager');
-const { getItemData } = require('./itemsDB');
+const { getItemData } = require('../DataBases/itemsDB');
 
 function addRelaxOptions() {
   // Flatten inventory grid to a list of items (no duplicates)

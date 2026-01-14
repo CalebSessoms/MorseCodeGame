@@ -55,16 +55,12 @@
     <button id="messages-btn" class="option-btn" style="background:#222; color:#fff; border:1px solid #ffb300;">Messages</button>
   </div>
   <script>
-    // Expose require for Electron renderer
-    window.require = require;
-  </script>
-  <script>
-    // Import modules
-    const playerOptions = require('./playerOptions');
-    const uiManager = require('./uiManager');
-    const inventoryManager = require('./inventoryManager');
-    const messagesManager = require('./messagesManager');
-    require('./gameManager');
+    // Import modules using Electron's require (works if nodeIntegration is enabled)
+    const playerOptions = require('./GameManagers/playerOptions');
+    const uiManager = require('./GameManagers/uiManager');
+    const inventoryManager = require('./GameManagers/inventoryManager');
+    const messagesManager = require('./GameManagers/messagesManager');
+    require('./GameManagers/gameManager');
     // Start the game when DOM is ready
     window.onload = () => {
       const invBtn = document.getElementById('inventory-btn');

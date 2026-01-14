@@ -1,6 +1,6 @@
 
 const { app, BrowserWindow } = require('electron');
-const { logAppLaunch } = require('./debugLogger');
+const { logAppLaunch } = require('./GameManagers/debugLogger');
 
 function createWindow() {
   const win = new BrowserWindow({

@@ -8,8 +8,8 @@
  * @param {string} type - The type of notification ('achievement', 'notification', 'inventory')
  */
 function showNotification(message, type = 'notification') {
-  // Choose sound based on type
-  let soundUrl = type + '.mp3';
+  // Choose sound based on type and correct path
+  let soundUrl = `Resources/Audio/${type}.mp3`;
   const audio = new Audio(soundUrl);
   audio.play();
 

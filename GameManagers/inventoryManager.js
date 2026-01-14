@@ -39,7 +39,7 @@ function moveItem(fromRow, fromCol, toRow, toCol) {
 
 const { createPlayerOption, removePlayerOption, getPlayerOptions, hidePlayerOptions, showPlayerOptions, debugAllPlayerOptions } = require('./playerOptions');
 const { updatePlayerOptionsUI, updateGameText } = require('./uiManager');
-const { getItemData } = require('./itemsDB');
+const { getItemData } = require('../DataBases/itemsDB');
 const { log } = require('./debugLogger');
 
 
