@@ -1,6 +1,11 @@
 
-const { app, BrowserWindow } = require('electron');
-const { logAppLaunch } = require('./GameManagers/debugLogger');
+
+const { app, BrowserWindow, ipcMain } = require('electron');
+const { logAppLaunch, log } = require('./GameManagers/debugLogger');
+// IPC handler for debug logging from renderer
+ipcMain.on('debug-log', (event, message) => {
+  log(message);
+});
 
 function createWindow() {
   const win = new BrowserWindow({

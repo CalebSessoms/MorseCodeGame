@@ -2,6 +2,7 @@
 // Handles the main gameplay flow and testing of player options and UI
 const { log } = require('./debugLogger');
 const { showNotification } = require('./notification');
+const { addMessage, deleteMessage, openMessages, closeMessages } = require('./messagesManager');
 
 const { debugAllPlayerOptions, createPlayerOption, removePlayerOption, editPlayerOption, getPlayerOptions, clearPlayerOptions } = require('./playerOptions');
 const { addItem, hasItem } = require('./inventoryManager');
@@ -21,6 +22,8 @@ let telegraphAvailable = false;
 function startGame() {
   // Narrative intro: grandfather's house
   updateGameText("You wake up in your grandfather's house. The morning is quiet, the old clock ticking in the hallway.");
+  addMessage("Basic test for message playback system.");
+  log("[GameManager] Game started.");
   showNotification("Congratulations on starting the game!", "achievement");
   clearPlayerOptions();
   // Present a button for the player to look outside (triggering the alarm/announcement)
@@ -176,6 +179,7 @@ function showRoomOptions() {
             updateGameText("You check the loose shelf and find a hidden compartment containing a telegraph machine. This could be useful for sending messages if other communication methods fail.\n\n");
             telegraphAvailable = true;
             showNotification("You have found a telegraph machine!", "notification");
+            addMessage("You have acquired a telegraph machine.");
             clearPlayerOptions();
         });
       });

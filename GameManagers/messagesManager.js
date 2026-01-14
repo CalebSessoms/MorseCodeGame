@@ -1,7 +1,112 @@
+/**
+ * Play a Morse code message using morse.mp3 for dits and dahs
+ * @param {MorseMessage|object} message - MorseMessage object or compatible
+ */
+function playMorseMessage(message) {
+  if (!message || !message.symbols || !Array.isArray(message.symbols)) return;
+  log(`[MorseMessage] Play: id=${message.id}, text="${message.text}", encrypted=${message.encrypted}`);
+  const BASE_DIT = 120; // ms, base short beep
+  const BASE_DAH = Math.round(BASE_DIT * 2.25); // ms, base dah
+  const BASE_SYMBOL_PAUSE = 120; // ms, base pause between symbols
+  const BASE_WORD_PAUSE = 480; // ms, base pause between words
+  const DIT = BASE_DIT * shortLength;
+  const DAH = BASE_DAH * longLength;
+  const SYMBOL_PAUSE = BASE_SYMBOL_PAUSE * shortLength;
+  const WORD_PAUSE = BASE_WORD_PAUSE * shortLength;
+  let idx = 0;
+  if (!playMorseMessage._oscillators) playMorseMessage._oscillators = [];
+  function clearHighlight() {
+    const symbolSpans = document.querySelectorAll(`.morse-symbols[data-msg-id='${message.id}'] .morse-symbol`);
+    symbolSpans.forEach(span => { span.style.background = ''; span.style.color = ''; });
+  }
+  if (playMorseMessage._playing) {
+    playMorseMessage._playing = false;
+    if (playMorseMessage._oscillators) {
+      playMorseMessage._oscillators.forEach(o => { try { o.stop(); } catch(e){} });
+      playMorseMessage._oscillators = [];
+    }
+    clearHighlight();
+    log(`[MorseMessage] Stopped playback`);
+    return;
+  }
+  playMorseMessage._playing = true;
+  playMorseMessage._oscillators = [];
+  clearHighlight();
+  function playNext() {
+    if (!playMorseMessage._playing) return;
+    if (idx >= message.symbols.length) {
+      playMorseMessage._playing = false;
+      if (playMorseMessage._oscillators) {
+        playMorseMessage._oscillators.forEach(o => { try { o.stop(); } catch(e){} });
+        playMorseMessage._oscillators = [];
+      }
+      clearHighlight();
+      return;
+    }
+    const symbol = message.symbols[idx];
+    if (idx > 0) {
+      const prevSpan = document.querySelector(`.morse-symbols[data-msg-id='${message.id}'] .morse-symbol[data-symbol-idx='${idx-1}']`);
+      if (prevSpan) {
+        prevSpan.style.background = '';
+        prevSpan.style.color = '';
+      }
+    }
+    if (symbol.type === 'dit' || symbol.type === 'dah') {
+      const symbolSpan = document.querySelector(`.morse-symbols[data-msg-id='${message.id}'] .morse-symbol[data-symbol-idx='${idx}']`);
+      if (symbolSpan) {
+        symbolSpan.style.background = '#ffb300';
+        symbolSpan.style.color = '#222';
+      }
+    }
+    if (symbol.type === 'dit') {
+      const audio = new Audio('Resources/Audio/dit.mp3');
+      playMorseMessage._audios = playMorseMessage._audios || [];
+      playMorseMessage._audios.push(audio);
+      audio.currentTime = 0;
+      audio.play();
+      setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        idx++;
+        setTimeout(playNext, SYMBOL_PAUSE);
+      }, DIT);
+    } else if (symbol.type === 'dah') {
+      const audio = new Audio('Resources/Audio/dah.mp3');
+      playMorseMessage._audios = playMorseMessage._audios || [];
+      playMorseMessage._audios.push(audio);
+      audio.currentTime = 0;
+      audio.play();
+      setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        idx++;
+        setTimeout(playNext, SYMBOL_PAUSE);
+      }, DAH);
+    } else if (symbol.type === 'space') {
+      idx++;
+      setTimeout(playNext, SYMBOL_PAUSE);
+    } else if (symbol.type === 'wordspace') {
+      idx++;
+      setTimeout(playNext, WORD_PAUSE);
+    } else {
+      idx++;
+      playNext();
+    }
+  }
+  playNext();
+}
+
+// ...removed Web Audio API beep generation...
+
+// Morse timing variables
+let shortLength = 1; // affects dits and character pauses
+let longLength = 1.2 // affects dahs
+
 // messagesManager.js
 // Handles opening, closing, and interacting with the messages menu
 
 const { hidePlayerOptions, showPlayerOptions } = require('./playerOptions');
+const { log } = require('./debugLogger');
 
 function openMessages() {
   // Hide inventory grid and close-inventory button if open
@@ -111,33 +216,271 @@ function renderMessagesSections() {
   const decryptedSection = document.getElementById('decrypted-messages-section');
   if (!encryptedSection || !decryptedSection) return;
   // For now, just show a placeholder if empty
-  if (messages.length === 0) {
-    encryptedSection.innerHTML = '<div style="color:#888;">No encrypted messages yet.</div>';
-    decryptedSection.innerHTML = '<div style="color:#888;">No decrypted messages yet.</div>';
-    return;
+    if (messages.length === 0) {
+      encryptedSection.innerHTML = '<div style="color:#888;">No encrypted messages yet.</div>';
+      decryptedSection.innerHTML = '<div style="color:#888;">No decrypted messages yet.</div>';
+      return;
+    }
+    // Split messages by encrypted/decrypted
+    const encryptedMsgs = messages.filter(m => m.encrypted !== false);
+    const decryptedMsgs = messages.filter(m => m.encrypted === false);
+    // Render Morse visually (dots/dashes) and text
+    function renderMorseSymbols(symbols, msgId) {
+      let html = '';
+      for (let i = 0; i < symbols.length; i++) {
+        const s = symbols[i];
+        if (s.type === 'dit' || s.type === 'dah') {
+          html += `<span class='morse-symbol' data-symbol-idx='${i}' style='padding:0 2px;'>${s.type === 'dit' ? '•' : '–'}</span>`;
+        } else if (s.type === 'space') {
+          html += ' ';
+        } else if (s.type === 'wordspace') {
+          html += '  ';
+        }
+      }
+      return `<span class='morse-symbols' data-msg-id='${msgId}'>${html}</span>`;
+    }
+    encryptedSection.innerHTML = encryptedMsgs.length ? encryptedMsgs.map((m, i) => `
+      <div class='morse-message-box' style='margin-bottom:0.5em; border:2px solid #ffb300; border-radius:8px; padding:1em; background:#222; cursor:pointer;' data-msg-idx='enc-${i}'>
+        <div><b>From:</b> ${m.sender || 'Unknown'} <b>Time:</b> ${new Date(m.timestamp).toLocaleString()}</div>
+      </div>
+    `).join('') : '<div style="color:#888;">No encrypted messages yet.</div>';
+    decryptedSection.innerHTML = decryptedMsgs.length ? decryptedMsgs.map((m, i) => `
+      <div class='morse-message-box' style='margin-bottom:0.5em; border:2px solid #ffb300; border-radius:8px; padding:1em; background:#222; cursor:pointer;' data-msg-idx='dec-${i}'>
+        <div><b>From:</b> ${m.sender || 'Unknown'} <b>Time:</b> ${new Date(m.timestamp).toLocaleString()}</div>
+        <div><b>Text:</b> ${m.text}</div>
+      </div>
+    `).join('') : '<div style="color:#888;">No decrypted messages yet.</div>';
+
+    // Add click listeners to open message modal
+    Array.from(encryptedSection.querySelectorAll('.morse-message-box')).forEach((box, i) => {
+      box.onclick = () => {
+        openMessageModal(encryptedMsgs[i]);
+      };
+    });
+    Array.from(decryptedSection.querySelectorAll('.morse-message-box')).forEach((box, i) => {
+      box.onclick = () => {
+        openMessageModal(decryptedMsgs[i]);
+      };
+    });
+// Modal for viewing and controlling a single message
+function openMessageModal(message) {
+  // Remove any existing modal
+  let oldModal = document.getElementById('morse-message-modal');
+  if (oldModal) oldModal.remove();
+  // Create modal
+  const modal = document.createElement('div');
+  modal.id = 'morse-message-modal';
+  modal.style.position = 'fixed';
+  modal.style.top = '50%';
+  modal.style.left = '50%';
+  modal.style.transform = 'translate(-50%, -50%)';
+  modal.style.background = '#222';
+  modal.style.border = '2px solid #ffb300';
+  modal.style.borderRadius = '10px';
+  modal.style.padding = '2em';
+  modal.style.zIndex = '9999';
+  modal.style.minWidth = '320px';
+  modal.style.maxWidth = '90vw';
+  modal.style.boxShadow = '0 0 24px #000';
+  // Message content
+  modal.innerHTML = `
+    <div style='margin-bottom:1em;'>
+      <b>From:</b> ${message.sender || 'Unknown'}<br>
+      <b>Time:</b> ${new Date(message.timestamp).toLocaleString()}<br>
+      ${message.encrypted === false && message.text ? `<b>Text:</b> ${message.text}<br>` : ''}
+      <div style='margin-top:1em;'>${renderMorseSymbols(message.symbols, 'modal-' + message.id)}</div>
+    </div>
+    <div style='display:flex; gap:1em;'>
+      <button id='play-pause-message-btn' style='flex:1; padding:0.5em 1em; background:#ffb300; color:#222; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Play</button>
+      <button id='close-message-btn' style='flex:1; padding:0.5em 1em; background:#333; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  // Play/pause logic
+  let isPlaying = false;
+  const playPauseBtn = document.getElementById('play-pause-message-btn');
+  // Patch playMorseMessage to highlight in modal
+  const highlightId = 'modal-' + message.id;
+  function playMorseMessageInModal(msg) {
+    if (!msg || !msg.symbols || !Array.isArray(msg.symbols)) return;
+    log(`[MorseMessage] Play: id=${msg.id}, text="${msg.text}", encrypted=${msg.encrypted}`);
+    const BASE_DIT = 120;
+    const BASE_DAH = Math.round(BASE_DIT * 2.25);
+    const BASE_SYMBOL_PAUSE = 120;
+    const BASE_WORD_PAUSE = 480;
+    const DIT = BASE_DIT * shortLength;
+    const DAH = BASE_DAH * longLength;
+    const SYMBOL_PAUSE = BASE_SYMBOL_PAUSE * shortLength;
+    const WORD_PAUSE = BASE_WORD_PAUSE * shortLength;
+    let idx = 0;
+    if (!playMorseMessageInModal._audios) playMorseMessageInModal._audios = [];
+    function clearHighlight() {
+      const symbolSpans = document.querySelectorAll(`.morse-symbols[data-msg-id='${highlightId}'] .morse-symbol`);
+      symbolSpans.forEach(span => { span.style.background = ''; span.style.color = ''; });
+    }
+    if (playMorseMessageInModal._playing) {
+      playMorseMessageInModal._playing = false;
+      playMorseMessageInModal._audios.forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+      playMorseMessageInModal._audios = [];
+      clearHighlight();
+      log(`[MorseMessage] Stopped playback`);
+      return;
+    }
+    playMorseMessageInModal._playing = true;
+    playMorseMessageInModal._audios = [];
+    clearHighlight();
+    function playNext() {
+      if (!playMorseMessageInModal._playing) return;
+      if (idx >= msg.symbols.length) {
+        playMorseMessageInModal._playing = false;
+        playMorseMessageInModal._audios.forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+        playMorseMessageInModal._audios = [];
+        clearHighlight();
+        return;
+      }
+      const symbol = msg.symbols[idx];
+      if (idx > 0) {
+        const prevSpan = document.querySelector(`.morse-symbols[data-msg-id='${highlightId}'] .morse-symbol[data-symbol-idx='${idx-1}']`);
+        if (prevSpan) {
+          prevSpan.style.background = '';
+          prevSpan.style.color = '';
+        }
+      }
+      if (symbol.type === 'dit' || symbol.type === 'dah') {
+        const symbolSpan = document.querySelector(`.morse-symbols[data-msg-id='${highlightId}'] .morse-symbol[data-symbol-idx='${idx}']`);
+        if (symbolSpan) {
+          symbolSpan.style.background = '#ffb300';
+          symbolSpan.style.color = '#222';
+        }
+      }
+      if (symbol.type === 'dit') {
+        const audio = new Audio('Resources/Audio/dit.mp3');
+        playMorseMessageInModal._audios.push(audio);
+        audio.currentTime = 0;
+        audio.play();
+        setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          idx++;
+          setTimeout(playNext, SYMBOL_PAUSE);
+        }, DIT);
+      } else if (symbol.type === 'dah') {
+        const audio = new Audio('Resources/Audio/dah.mp3');
+        playMorseMessageInModal._audios.push(audio);
+        audio.currentTime = 0;
+        audio.play();
+        setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          idx++;
+          setTimeout(playNext, SYMBOL_PAUSE);
+        }, DAH);
+      } else if (symbol.type === 'space') {
+        idx++;
+        setTimeout(playNext, SYMBOL_PAUSE);
+      } else if (symbol.type === 'wordspace') {
+        idx++;
+        setTimeout(playNext, WORD_PAUSE);
+      } else {
+        idx++;
+        playNext();
+      }
+    }
+    playNext();
   }
-  // Example: split messages by a property (future: encrypted/decrypted)
-  const encryptedMsgs = messages.filter(m => m.encrypted !== false);
-  const decryptedMsgs = messages.filter(m => m.encrypted === false);
-  encryptedSection.innerHTML = encryptedMsgs.length ? encryptedMsgs.map(m => `<div style='margin-bottom:0.5em;'>${m.text}</div>`).join('') : '<div style="color:#888;">No encrypted messages yet.</div>';
-  decryptedSection.innerHTML = decryptedMsgs.length ? decryptedMsgs.map(m => `<div style='margin-bottom:0.5em;'>${m.text}</div>`).join('') : '<div style="color:#888;">No decrypted messages yet.</div>';
+  playPauseBtn.onclick = () => {
+    if (!isPlaying) {
+      playMorseMessageInModal(message);
+      playPauseBtn.textContent = 'Pause';
+      isPlaying = true;
+    } else {
+      playMorseMessageInModal(message); // toggles stop
+      playPauseBtn.textContent = 'Play';
+      isPlaying = false;
+    }
+  };
+  // Close logic
+  document.getElementById('close-message-btn').onclick = () => {
+    if (isPlaying) playMorseMessageInModal(message); // ensure playback stops
+    modal.remove();
+  };
+}
 }
 
 
+
+// MorseMessage class for structured Morse code messages
+class MorseMessage {
+  constructor({ text, morse, symbols, encrypted = true, sender = '', timestamp = Date.now() }) {
+    this.id = MorseMessage.nextId++;
+    this.text = text; // Plain text
+    this.morse = morse; // Morse code string
+    this.symbols = symbols || MorseMessage.parseMorse(morse); // Array of {type: 'dit'|'dah'|'space'}
+    this.encrypted = encrypted;
+    this.sender = sender;
+    this.timestamp = timestamp;
+  }
+  // Parse a morse string into symbols array
+  static parseMorse(morseStr) {
+    if (!morseStr) return [];
+    const symbols = [];
+    for (const char of morseStr) {
+      if (char === '.') symbols.push({ type: 'dit' });
+      else if (char === '-') symbols.push({ type: 'dah' });
+      else if (char === ' ') symbols.push({ type: 'space' });
+      else if (char === '/') symbols.push({ type: 'wordspace' });
+    }
+    return symbols;
+  }
+}
+MorseMessage.nextId = 1;
+
 // In-memory messages array
 let messages = [];
-let nextMessageId = 1;
+
+
+
 
 /**
- * Add a message to the messages array
- * @param {string|object} msg - Message text or object
- * @returns {object} The added message object
+ * Add a MorseMessage to the messages array
+ * @param {string|object|MorseMessage} input - Plain text, options object, or MorseMessage
+ * @returns {MorseMessage} The added message object
  */
-function addMessage(msg) {
-  const messageObj = typeof msg === 'object' ? { ...msg } : { text: msg };
-  messageObj.id = nextMessageId++;
+function addMessage(input) {
+  let messageObj;
+  if (input instanceof MorseMessage) {
+    messageObj = input;
+  } else if (typeof input === 'object') {
+    // If object, use its properties
+    // If no morse, auto-generate from text
+    const morse = input.morse || encodeToMorse(input.text || '');
+    messageObj = new MorseMessage({ ...input, morse });
+  } else if (typeof input === 'string') {
+    // If just a string, treat as encrypted by default
+    const morse = encodeToMorse(input);
+    messageObj = new MorseMessage({ text: input, morse, encrypted: true });
+  } else {
+    throw new Error('Invalid input to addMessage');
+  }
   messages.push(messageObj);
+  log(`[MorseMessage] Added: id=${messageObj.id}, text="${messageObj.text}", encrypted=${messageObj.encrypted}`);
   return messageObj;
+}
+
+// Simple Morse code encoder (A-Z, 0-9, space)
+const MORSE_TABLE = {
+  'A': '.-',    'B': '-...',  'C': '-.-.',  'D': '-..',   'E': '.',
+  'F': '..-.',  'G': '--.',   'H': '....',  'I': '..',    'J': '.---',
+  'K': '-.-',   'L': '.-..',  'M': '--',    'N': '-.',    'O': '---',
+  'P': '.--.',  'Q': '--.-',  'R': '.-.',   'S': '...',   'T': '-',
+  'U': '..-',   'V': '...-',  'W': '.--',   'X': '-..-',  'Y': '-.--',
+  'Z': '--..',
+  '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+  '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+  ' ': '/',
+};
+function encodeToMorse(text) {
+  return (text || '').toUpperCase().split('').map(ch => MORSE_TABLE[ch] || '').join(' ');
 }
 
 
@@ -160,5 +503,6 @@ module.exports = {
   openMessages,
   closeMessages,
   addMessage,
-  deleteMessage
+  deleteMessage,
+  playMorseMessage
 };
