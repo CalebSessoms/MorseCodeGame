@@ -290,12 +290,40 @@ function openMessageModal(message) {
       ${message.encrypted === false && message.text ? `<b>Text:</b> ${message.text}<br>` : ''}
       <div style='margin-top:1em;'>${renderMorseSymbols(message.symbols, 'modal-' + message.id)}</div>
     </div>
-    <div style='display:flex; gap:1em;'>
+    <div style='display:flex; gap:1em; margin-bottom:1em;'>
       <button id='play-pause-message-btn' style='flex:1; padding:0.5em 1em; background:#ffb300; color:#222; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Play</button>
       <button id='close-message-btn' style='flex:1; padding:0.5em 1em; background:#333; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Close</button>
     </div>
+    ${message.encrypted ? `
+      <div style='margin-top:1em; display:flex; gap:0.5em;'>
+        <input id='decrypt-input' type='text' placeholder='Enter decrypted text...' style='flex:2; padding:0.5em; border-radius:6px; border:1px solid #888; background:#111; color:#fff;'>
+        <button id='decrypt-btn' style='flex:1; padding:0.5em 1em; background:#2196f3; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Decrypt</button>
+      </div>
+    ` : ''}
   `;
   document.body.appendChild(modal);
+  // Decrypt logic for encrypted messages
+  if (message.encrypted) {
+    const decryptBtn = document.getElementById('decrypt-btn');
+    const decryptInput = document.getElementById('decrypt-input');
+    if (decryptBtn && decryptInput) {
+      decryptBtn.onclick = () => {
+        const val = decryptInput.value.trim();
+        log("test1");
+        if (val) {
+          log("test2");
+          if (decryptHelper(val)) {
+            modal.remove();
+            openMessages(); // refresh message list
+          } else {
+            decryptInput.style.border = '2px solid #f00';
+            decryptInput.value = '';
+            decryptInput.placeholder = 'Incorrect, try again...';
+          }
+        }
+      };
+    }
+  }
   // Play/pause logic
   let isPlaying = false;
   const playPauseBtn = document.getElementById('play-pause-message-btn');
@@ -499,10 +527,50 @@ function deleteMessage(id) {
   return false;
 }
 
+/**
+ * Decrypt a MorseMessage by id or object
+ * @param {number|MorseMessage} msgOrId - The message object or its id
+ * @param {string} [decryptedText] - Optional decrypted text to set
+ * @returns {boolean} True if decrypted, false if not found
+ */
+function decryptMessage(msgOrId, decryptedText) {
+  let msg = null;
+  if (typeof msgOrId === 'number') {
+    msg = messages.find(m => m.id === msgOrId);
+  } else if (typeof msgOrId === 'object' && msgOrId instanceof MorseMessage) {
+    msg = msgOrId;
+  }
+  if (!msg) return false;
+  msg.encrypted = false;
+  if (decryptedText) msg.text = decryptedText;
+  log(`[MorseMessage] Decrypted: id=${msg.id}, text="${msg.text}", encrypted=${msg.encrypted}`);
+  return true;
+}
+
+/**
+ * Helper to decrypt a message by matching user input to encrypted message text
+ * @param {string} candidateText - The user input to match against encrypted messages' text
+ * @returns {boolean} True if a message was decrypted, false otherwise
+ */
+function decryptHelper(candidateText) {
+  const encryptedTexts = messages.filter(m => m.encrypted).map(m => m.text);
+  log(`[MorseMessage] DecryptHelper: candidate="${candidateText}", all_encrypted_texts=${JSON.stringify(encryptedTexts)}`);
+  const msg = messages.find(m => m.encrypted && m.text === candidateText);
+  if (msg) {
+    log(`[MorseMessage] DecryptHelper: matched actual="${msg.text}"`);
+  }
+  if (msg) {
+    return decryptMessage(msg, candidateText);
+  }
+  return false;
+}
+
 module.exports = {
   openMessages,
   closeMessages,
   addMessage,
   deleteMessage,
-  playMorseMessage
+  playMorseMessage,
+  decryptMessage,
+  decryptHelper
 };
