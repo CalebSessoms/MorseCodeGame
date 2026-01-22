@@ -241,7 +241,7 @@ function renderMessagesSections() {
     }
     encryptedSection.innerHTML = encryptedMsgs.length ? encryptedMsgs.map((m, i) => `
       <div class='morse-message-box' style='margin-bottom:0.5em; border:2px solid #ffb300; border-radius:8px; padding:1em; background:#222; cursor:pointer;' data-msg-idx='enc-${i}'>
-        <div><b>From:</b> ${m.sender || 'Unknown'} <b>Time:</b> ${new Date(m.timestamp).toLocaleString()}</div>
+        <div><b>From:</b> Unknown Sender <b>Time:</b> ${new Date(m.timestamp).toLocaleString()}</div>
       </div>
     `).join('') : '<div style="color:#888;">No encrypted messages yet.</div>';
     decryptedSection.innerHTML = decryptedMsgs.length ? decryptedMsgs.map((m, i) => `
@@ -283,18 +283,20 @@ function openMessageModal(message) {
   modal.style.maxWidth = '90vw';
   modal.style.boxShadow = '0 0 24px #000';
   // Message content
+  // Determine if message is encrypted (no sender info for encrypted)
+  const isEncrypted = message.encrypted !== false;
   modal.innerHTML = `
     <div style='margin-bottom:1em;'>
-      <b>From:</b> ${message.sender || 'Unknown'}<br>
+      <b>From:</b> ${isEncrypted ? 'Unknown Sender' : (message.sender || 'Unknown')}<br>
       <b>Time:</b> ${new Date(message.timestamp).toLocaleString()}<br>
-      ${message.encrypted === false && message.text ? `<b>Text:</b> ${message.text}<br>` : ''}
+      ${!isEncrypted && message.text ? `<b>Text:</b> ${message.text}<br>` : ''}
       <div style='margin-top:1em;'>${renderMorseSymbols(message.symbols, 'modal-' + message.id)}</div>
     </div>
     <div style='display:flex; gap:1em; margin-bottom:1em;'>
       <button id='play-pause-message-btn' style='flex:1; padding:0.5em 1em; background:#ffb300; color:#222; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Play</button>
       <button id='close-message-btn' style='flex:1; padding:0.5em 1em; background:#333; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Close</button>
     </div>
-    ${message.encrypted ? `
+    ${isEncrypted ? `
       <div style='margin-top:1em; display:flex; gap:0.5em;'>
         <input id='decrypt-input' type='text' placeholder='Enter decrypted text...' style='flex:2; padding:0.5em; border-radius:6px; border:1px solid #888; background:#111; color:#fff;'>
         <button id='decrypt-btn' style='flex:1; padding:0.5em 1em; background:#2196f3; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;'>Decrypt</button>
@@ -466,32 +468,46 @@ MorseMessage.nextId = 1;
 // In-memory messages array
 let messages = [];
 
+// Import Morse messages database
+const morseMessagesDB = require('../DataBases/morseMessages.db.js');
+
 
 
 
 /**
  * Add a MorseMessage to the messages array
- * @param {string|object|MorseMessage} input - Plain text, options object, or MorseMessage
+ * @param {number|string|object|MorseMessage} input - id from DB, plain text, options object, or MorseMessage
  * @returns {MorseMessage} The added message object
  */
 function addMessage(input) {
   let messageObj;
-  if (input instanceof MorseMessage) {
+  if (typeof input === 'number') {
+    // Look up by id in DB
+    const dbMsg = morseMessagesDB.find(m => m.id === input);
+    if (!dbMsg) throw new Error(`No message found in DB with id=${input}`);
+    const morse = encodeToMorse(dbMsg.text);
+    messageObj = new MorseMessage({
+      id: dbMsg.id,
+      text: dbMsg.text,
+      morse,
+      sender: dbMsg.sender,
+      timestamp: dbMsg.timestamp
+    });
+  } else if (input instanceof MorseMessage) {
     messageObj = input;
   } else if (typeof input === 'object') {
     // If object, use its properties
-    // If no morse, auto-generate from text
     const morse = input.morse || encodeToMorse(input.text || '');
     messageObj = new MorseMessage({ ...input, morse });
   } else if (typeof input === 'string') {
     // If just a string, treat as encrypted by default
     const morse = encodeToMorse(input);
-    messageObj = new MorseMessage({ text: input, morse, encrypted: true });
+    messageObj = new MorseMessage({ text: input, morse });
   } else {
     throw new Error('Invalid input to addMessage');
   }
   messages.push(messageObj);
-  log(`[MorseMessage] Added: id=${messageObj.id}, text="${messageObj.text}", encrypted=${messageObj.encrypted}`);
+  log(`[MorseMessage] Added: id=${messageObj.id}, text="${messageObj.text}", sender=${messageObj.sender}`);
   return messageObj;
 }
 
@@ -553,14 +569,15 @@ function decryptMessage(msgOrId, decryptedText) {
  * @returns {boolean} True if a message was decrypted, false otherwise
  */
 function decryptHelper(candidateText) {
+  const candidate = (candidateText || '').toUpperCase();
   const encryptedTexts = messages.filter(m => m.encrypted).map(m => m.text);
-  log(`[MorseMessage] DecryptHelper: candidate="${candidateText}", all_encrypted_texts=${JSON.stringify(encryptedTexts)}`);
-  const msg = messages.find(m => m.encrypted && m.text === candidateText);
+  log(`[MorseMessage] DecryptHelper: candidate="${candidate}", all_encrypted_texts=${JSON.stringify(encryptedTexts)}`);
+  const msg = messages.find(m => m.encrypted && (m.text || '').toUpperCase() === candidate);
   if (msg) {
     log(`[MorseMessage] DecryptHelper: matched actual="${msg.text}"`);
   }
   if (msg) {
-    return decryptMessage(msg, candidateText);
+    return decryptMessage(msg, msg.text);
   }
   return false;
 }

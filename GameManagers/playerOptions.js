@@ -8,7 +8,6 @@ function clearPlayerOptions() {
   // Remove all options from the array and log each removal
   while (playerOptions.length > 0) {
     const opt = playerOptions.pop();
-    log(`[PlayerOption] Removed: id=${opt.id}, label="${opt.label}"`);
   }
   updatePlayerOptionsUI(getPlayerOptions())
 }
@@ -33,7 +32,6 @@ function createPlayerOption(label, action) {
   const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
   const option = { id, label, action };
   playerOptions.push(option);
-  log(`[PlayerOption] Added: id=${id}, label="${label}"`);
   updatePlayerOptionsUI(getPlayerOptions());
   return option;
 }
@@ -51,7 +49,6 @@ function removePlayerOption(idOrLabel) {
   if (index !== -1) {
     const removed = playerOptions[index];
     playerOptions.splice(index, 1);
-    log(`[PlayerOption] Removed: id=${removed.id}, label="${removed.label}"`);
     updatePlayerOptionsUI(getPlayerOptions());
     return true;
   }
@@ -77,7 +74,6 @@ function editPlayerOption(currentLabel, updates) {
       option.action = updates.action;
     }
     if (changes.length > 0) {
-      log(`[PlayerOption] Edited: label="${currentLabel}", ${changes.join(', ')}`);
     }
     return true;
   }

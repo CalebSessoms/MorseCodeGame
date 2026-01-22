@@ -19,7 +19,9 @@ let basementDoorState = 'locked';
 let breakerPosition = 'off';
 let telegraphAvailable = false;
 
+// CURRENT ENTRY POINT: This function is currently used to start the game, but will be replaced by logic in gameStateManager.js as part of the ongoing refactor.
 function startGame() {
+  log("This is the old gameManager.js starting the game.");
   // Narrative intro: grandfather's house
   updateGameText("You wake up in your grandfather's house. The morning is quiet, the old clock ticking in the hallway.");
   addMessage("Basic test for message playback system.");
@@ -234,111 +236,12 @@ function showRoomOptions() {
   updatePlayerOptionsUI(getPlayerOptions());
 }
 
-function addStartOptions() {
-  const shopping = createPlayerOption('Go Shopping', () => {
-    updateGameText('You decide to go shopping. How do you want to shop?');
-    clearPlayerOptions();
-    addShoppingOptions();
-  });
-  const relax = createPlayerOption('Relax', () => {
-    updateGameText('You decide to relax. How do you want to relax?');
-    clearPlayerOptions();
-    addRelaxOptions();
-  });
-  currentOptionIds.push(shopping.id, relax.id);
-  updatePlayerOptionsUI(getPlayerOptions());
-}
 
-function addShoppingOptions() {
-  const online = createPlayerOption('Shop Online', () => {
-    updateGameText('You are shopping online. What would you like to buy?');
-    clearPlayerOptions();
-    // Online purchase options
-    const book = createPlayerOption('Buy e-Book', () => {
-      addItem('e-Book');
-      updateGameText('You bought an e-Book!');
-      clearPlayerOptions();
-      addStartOptions();
-    });
-    const headphones = createPlayerOption('Buy Headphones', () => {
-      addItem('Headphones');
-      updateGameText('You bought headphones!');
-      clearPlayerOptions();
-      addStartOptions();
-    });
-    const back = createPlayerOption('Back', () => {
-      updateGameText('How do you want to shop?');
-      clearPlayerOptions();
-      addShoppingOptions();
-    });
-    currentOptionIds.push(book.id, headphones.id, back.id);
-    updatePlayerOptionsUI(getPlayerOptions());
-  });
-  const inStore = createPlayerOption('Shop In-Store', () => {
-    updateGameText('You are shopping in-store. What would you like to buy?');
-    clearPlayerOptions();
-    // In-store purchase options
-    const snack = createPlayerOption('Buy Snack', () => {
-      addItem('Snack');
-      updateGameText('You bought a snack!');
-      clearPlayerOptions();
-      addStartOptions();
-    });
-    const magazine = createPlayerOption('Buy Magazine', () => {
-      addItem('Magazine');
-      updateGameText('You bought a magazine!');
-      clearPlayerOptions();
-      addStartOptions();
-    });
-    const back = createPlayerOption('Back', () => {
-      updateGameText('How do you want to shop?');
-      clearPlayerOptions();
-      addShoppingOptions();
-    });
-    currentOptionIds.push(snack.id, magazine.id, back.id);
-    updatePlayerOptionsUI(getPlayerOptions());
-  });
-  const relax = createPlayerOption('Relax', () => {
-    updateGameText('You decide to relax. How do you want to relax?');
-    clearPlayerOptions();
-    addRelaxOptions();
-  });
-  currentOptionIds.push(online.id, inStore.id, relax.id);
-  updatePlayerOptionsUI(getPlayerOptions());
-}
 
 const { getInventory } = require('./inventoryManager');
 const { getItemData } = require('../DataBases/itemsDB');
 
-function addRelaxOptions() {
-  // Flatten inventory grid to a list of items (no duplicates)
-  const inventoryGrid = getInventory();
-  const itemsFlat = inventoryGrid.flat().filter(Boolean);
-  const uniqueItems = [...new Set(itemsFlat)];
-  // For each unique item, create player options for each of its actions (except Drop)
-  uniqueItems.forEach(itemName => {
-    const data = getItemData(itemName) || { name: itemName, actions: [] };
-    data.actions.forEach(actionObj => {
-      if (actionObj.actionText === 'Drop') return; // Don't show Drop in relax menu
-      const opt = createPlayerOption(`${actionObj.actionText} ${data.name}`, () => {
-        updateGameText(`You ${actionObj.actionText.toLowerCase()} your ${data.name}.`);
-        // Optionally, could trigger item-specific logic here
-        // For now, just return to start options
-        clearPlayerOptions();
-        addStartOptions();
-      });
-      currentOptionIds.push(opt.id);
-    });
-  });
-  // Always add a static Nap option
-  const nap = createPlayerOption('Take a Nap', () => {
-    updateGameText('You take a nap. You feel refreshed!');
-    clearPlayerOptions();
-    addStartOptions();
-  });
-  currentOptionIds.push(nap.id);
-  updatePlayerOptionsUI(getPlayerOptions());
-}
+
 
 // Expose startGame for use in index.html
 window.startGame = startGame;
