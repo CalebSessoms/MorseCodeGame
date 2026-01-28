@@ -1,0 +1,44 @@
+{
+  "currentRoom": "basement",
+  "basementDoorState": "unlocked",
+  "breakerPosition": "on",
+  "inventory": [
+    [
+      "Flashlight",
+      "Small Brass Key",
+      null,
+      null,
+      null
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "messages": [],
+  "telegraphAvailable": false
+}

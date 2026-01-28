@@ -1,4 +1,16 @@
 /**
+ * Clear all messages
+ */
+function clearMessages() {
+  messages.length = 0;
+}
+/**
+ * Get a shallow copy of the current messages array
+ */
+function getMessages() {
+  return messages.slice();
+}
+/**
  * Play a Morse code message using morse.mp3 for dits and dahs
  * @param {MorseMessage|object} message - MorseMessage object or compatible
  */
@@ -589,5 +601,7 @@ module.exports = {
   deleteMessage,
   playMorseMessage,
   decryptMessage,
-  decryptHelper
+  decryptHelper,
+  getMessages,
+  clearMessages
 };

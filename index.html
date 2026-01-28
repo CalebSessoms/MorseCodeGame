@@ -72,7 +72,8 @@
     const inventoryManager = require('./GameManagers/inventoryManager');
     const messagesManager = require('./GameManagers/messagesManager');
     require('./GameManagers/gameStateManager');
-    // Start the game when DOM is ready
+    const { showMainMenu } = require('./GameManagers/menuManager');
+    // Show main menu when DOM is ready
     window.onload = () => {
       const invBtn = document.getElementById('inventory-btn');
       const closeInvBtn = document.getElementById('close-inventory-btn');
@@ -88,8 +89,16 @@
         inventoryManager.closeInventory();
         messagesManager.openMessages();
       };
-      window.startGame();
+      showMainMenu();
     };
+// Save game on window close
+window.addEventListener('beforeunload', () => {
+  try {
+    const { saveGame } = require('./GameManagers/saveManager');
+    const { getGameStateForSave } = require('./GameManagers/gameStateManager');
+    saveGame(getGameStateForSave());
+  } catch (e) { /* ignore for now */ }
+});
   </script>
 </body>
 </html>

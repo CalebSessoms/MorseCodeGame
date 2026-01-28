@@ -1,4 +1,14 @@
 /**
+ * Clear the entire inventory (set all slots to null)
+ */
+function clearInventory() {
+  for (let row = 0; row < inventory.length; row++) {
+    for (let col = 0; col < inventory[row].length; col++) {
+      inventory[row][col] = null;
+    }
+  }
+}
+/**
  * Move an item from one slot to another in the inventory grid.
  * @param {number} fromRow - Source row index
  * @param {number} fromCol - Source column index
@@ -314,5 +324,6 @@ module.exports = {
   getInventory: () => inventory,
   hasItem,
   INVENTORY_ROWS,
-  INVENTORY_COLS
+  INVENTORY_COLS,
+  clearInventory
 };

@@ -1,3 +1,59 @@
+// Loads basic game state fields from a save object and starts the game at the correct state
+const { clearInventory, addItem, hasItem, getInventory } = require('./inventoryManager');
+const { clearMessages } = require('./messagesManager');
+function loadGameState(saveObj) {
+  if (!saveObj) return;
+  setInGame(true);
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'block';
+  gameState.currentRoom = saveObj.currentRoom || Room.LIVING_ROOM;
+  gameState.basementDoorState = saveObj.basementDoorState || BasementDoorState.LOCKED;
+  gameState.breakerPosition = saveObj.breakerPosition || BreakerPosition.OFF;
+  // Restore telegraphAvailable
+  if (typeof saveObj.telegraphAvailable === 'boolean') {
+    telegraphAvailable = saveObj.telegraphAvailable;
+  } else {
+    telegraphAvailable = false;
+  }
+
+  // Restore inventory
+  if (Array.isArray(saveObj.inventory)) {
+    clearInventory();
+    // Flatten and add items (if not null)
+    for (let row = 0; row < saveObj.inventory.length; row++) {
+      for (let col = 0; col < saveObj.inventory[row].length; col++) {
+        const item = saveObj.inventory[row][col];
+        if (item) addItem(item, row, col);
+      }
+    }
+  }
+  // Restore messages
+  if (Array.isArray(saveObj.messages)) {
+    clearMessages();
+    for (const msg of saveObj.messages) {
+      addMessage(msg);
+    }
+  }
+  showRoomOptions();
+}
+// Helper to get basic game state for saving
+const { getMessages } = require('./messagesManager');
+function getGameStateForSave() {
+  // Strip morse and symbols fields from messages before saving
+  const rawMessages = getMessages();
+  const messages = rawMessages.map(m => {
+    const { morse, symbols, ...rest } = m;
+    return rest;
+  });
+  return {
+    currentRoom: gameState.currentRoom,
+    basementDoorState: gameState.basementDoorState,
+    breakerPosition: gameState.breakerPosition,
+    inventory: getInventory(),
+    messages,
+    telegraphAvailable
+  };
+}
 // gameStateManager.js
 // Handles the main gameplay flow and testing of player options and UI
 
@@ -5,7 +61,7 @@ const { log } = require('./debugLogger');
 const { showNotification } = require('./notification');
 const { addMessage, deleteMessage, openMessages, closeMessages } = require('./messagesManager');
 const { debugAllPlayerOptions, createPlayerOption, removePlayerOption, editPlayerOption, getPlayerOptions, clearPlayerOptions } = require('./playerOptions');
-const { addItem, hasItem, getInventory } = require('./inventoryManager');
+
 const { updatePlayerOptionsUI, updateGameText } = require('./uiManager');
 const { getItemData } = require('../DataBases/itemsDB');
 
@@ -44,9 +100,14 @@ const gameState = {
   breakerPosition: BreakerPosition.OFF,
 };
 
+const { setInGame } = require('./menuManager');
+
 function startGame() {
-    log("This is the new gameStateManager.js starting the game.");
-    addMessage(1);
+  setInGame(true);
+  // Show game UI
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'block';
+  log("This is the new gameStateManager.js starting the game.");
   // Narrative intro: grandfather's house
   updateGameText("You wake up in your grandfather's house. The morning is quiet, the old clock ticking in the hallway.");
   log("[GameStateManager] Game started.");
@@ -168,14 +229,15 @@ function showRoomOptions() {
     }
   } else if (gameState.currentRoom === Room.BASEMENT) {
     clearPlayerOptions();
-    const toKitchen = createPlayerOption('Go to the kitchen', () => {
-      gameState.currentRoom = Room.KITCHEN;
-      showRoomOptions();
-    });
-    let desc = "You are in the basement. The air is damp and musty, and the faint sound of dripping water echoes around you.";
     if (telegraphAvailable) {
-      desc += " A telegraph machine sits on a crate, its keys worn but functional.";
+      desc = " A telegraph machine sits on a crate, its keys worn but functional.";
+      updateGameText(desc);
     } else {
+      const toKitchen = createPlayerOption('Go to the kitchen', () => {
+        gameState.currentRoom = Room.KITCHEN;
+        showRoomOptions();
+      });
+      let desc = "You are in the basement. The air is damp and musty, and the faint sound of dripping water echoes around you.";
       if (gameState.breakerPosition === BreakerPosition.ON) {
         desc += " The basement is illuminated by a flickering overhead light.";
         const breakerBox = createPlayerOption('Check the breaker box', () => {
@@ -187,8 +249,9 @@ function showRoomOptions() {
           const checkShelf = createPlayerOption('Check the loose shelf', () => {
             updateGameText("You check the loose shelf and find a hidden compartment containing a telegraph machine. This could be useful for sending messages if other communication methods fail.\n\n");
             telegraphAvailable = true;
+            addMessage(1);
             showNotification("You have found a telegraph machine!", "notification");
-            clearPlayerOptions();
+            showRoomOptions();
           });
         });
       } else {
@@ -235,8 +298,13 @@ function showRoomOptions() {
   updatePlayerOptionsUI(getPlayerOptions());
 }
 
-// Expose startGame for use in index.html
-window.startGame = startGame;
+function returnToMenu() {
+  setInGame(false);
+  // Hide game UI
+  const mainArea = document.getElementById('game-main-area');
+  if (mainArea) mainArea.style.display = 'none';
+  // Optionally clear player options, etc.
+}
 
 module.exports = {
   BasementDoorState,
@@ -244,4 +312,8 @@ module.exports = {
   Room,
   currentOptionIds,
   telegraphAvailable,
+  startGame,
+  returnToMenu,
+  getGameStateForSave,
+  loadGameState
 };
