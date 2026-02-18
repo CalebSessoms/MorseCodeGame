@@ -5,6 +5,12 @@
 
 function showMainMenu() {
   hideAllSections();
+  inGame = false;
+  // Hide game area and button row when menu is shown
+  const mainArea = document.getElementById('game-main-area');
+  const buttonRow = document.getElementById('button-row');
+  if (mainArea) mainArea.style.display = 'none';
+  if (buttonRow) buttonRow.style.display = 'none';
   let menu = document.getElementById('main-menu');
   if (!menu) {
     menu = document.createElement('div');
@@ -61,6 +67,11 @@ function showMainMenu() {
         if (saveObj) {
           popup.remove();
           menu.style.display = 'none';
+          // Show game area and button row
+          const mainArea = document.getElementById('game-main-area');
+          const buttonRow = document.getElementById('button-row');
+          if (mainArea) mainArea.style.display = 'block';
+          if (buttonRow) buttonRow.style.display = 'flex';
           loadGameState(saveObj);
         } else {
           // Optionally show a message: no save found
@@ -70,14 +81,398 @@ function showMainMenu() {
       document.getElementById('start-new-game-btn').onclick = () => {
         popup.remove();
         menu.style.display = 'none';
+        // Show game area and button row
+        const mainArea = document.getElementById('game-main-area');
+        const buttonRow = document.getElementById('button-row');
+        if (mainArea) mainArea.style.display = 'block';
+        if (buttonRow) buttonRow.style.display = 'flex';
         // Require here to avoid circular dependency
         const { startGame } = require('./gameStateManager');
         startGame();
       };
     };
     document.getElementById('menu-survival-btn').onclick = () => {};
-    document.getElementById('menu-practice-btn').onclick = () => {};
-      document.getElementById('menu-settings-btn').onclick = () => showSettingsMenu('main');
+    document.getElementById('menu-practice-btn').onclick = () => {
+      if (document.getElementById('practice-overlay')) return;
+      const overlay = document.createElement('div');
+      overlay.id = 'practice-overlay';
+      overlay.style.position = 'fixed';
+      overlay.style.top = '50%';
+      overlay.style.left = '50%';
+      overlay.style.transform = 'translate(-50%, -50%)';
+      overlay.style.background = '#222';
+      overlay.style.border = '2px solid #ffb300';
+      overlay.style.borderRadius = '10px';
+      overlay.style.padding = '2em';
+      overlay.style.zIndex = '10001';
+      overlay.style.minWidth = '320px';
+      overlay.style.maxWidth = '90vw';
+      overlay.style.height = 'auto';
+      overlay.style.maxHeight = '80vh';
+      overlay.style.boxShadow = '0 0 24px #000';
+      overlay.innerHTML = `
+        <button id='practice-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
+        <h2 style='color:#ffb300; margin-bottom:1em;'>Practice Mode</h2>
+        <div id='practice-grid' style='display:grid; grid-template-columns:repeat(3, 64px); grid-template-rows:repeat(3, 64px); gap:18px; margin-top:2em;'>
+          <div id='practice-level-1' style='background:#ffb300; color:#222; display:flex; align-items:center; justify-content:center; font-size:2em; font-weight:bold; border-radius:10px; box-shadow:0 2px 8px #000; cursor:pointer;'>1</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.getElementById('practice-close-btn').onclick = function() {
+        overlay.remove();
+        showMainMenu();
+      };
+      // When a level is selected, open telegraph UI and close overlay
+      document.getElementById('practice-level-1').onclick = function() {
+        // Add the first message from the DB to messagesManager if not already present
+        try {
+          const { log } = require('./debugLogger');
+          log('[PracticeMode] Starting practice mode, adding first message from DB');
+          const messagesManager = require('./messagesManager');
+          const morseMessagesDB = require('../DataBases/morseMessages.db');
+          const msgs = messagesManager.getMessages();
+          if (msgs.length === 0 && morseMessagesDB.length > 0) {
+            let msg = { ...morseMessagesDB[0] };
+            msg.encrypted = true;
+            msg.decrypted = false;
+            if (!msg.symbols && msg.text) {
+              // Simple Morse conversion: dot for A-M, dash for N-Z, space for space
+              msg.symbols = Array.from(msg.text).map(ch => {
+                if (ch === ' ') return { type: 'wordspace' };
+                if ('ABCDEFGHIJKLM'.includes(ch.toUpperCase())) return { type: 'dit' };
+                if ('NOPQRSTUVWXYZ'.includes(ch.toUpperCase())) return { type: 'dah' };
+                return { type: 'space' };
+              });
+            }
+            messagesManager.addMessage(msg);
+          }
+        } catch(e) {}
+        overlay.remove();
+        // Hide menu and game area, show only telegraph UI as a full screen
+        const menu = document.getElementById('main-menu');
+        const mainArea = document.getElementById('game-main-area');
+        const buttonRow = document.getElementById('button-row');
+        if (menu) menu.style.display = 'none';
+        if (mainArea) mainArea.style.display = 'none';
+        if (buttonRow) buttonRow.style.display = 'none';
+        if (document.getElementById('practice-telegraph-ui')) return;
+        const telegraph = document.createElement('div');
+        telegraph.id = 'practice-telegraph-ui';
+        telegraph.style.position = 'fixed';
+        telegraph.style.top = '0';
+        telegraph.style.left = '0';
+        telegraph.style.width = '100vw';
+        telegraph.style.height = '100vh';
+        telegraph.style.background = '#181818';
+        telegraph.style.display = 'flex';
+        telegraph.style.flexDirection = 'column';
+        telegraph.style.alignItems = 'center';
+        telegraph.style.justifyContent = 'center';
+        telegraph.style.zIndex = '10010';
+        telegraph.innerHTML = `
+          <h2 style='color:#ffb300; margin-bottom:1em;'>Telegraph Practice</h2>
+          <div style='display:flex; gap:2em; margin-bottom:2em;'>
+            <button id='practice-incoming-btn' class='menu-btn'>View Incoming Messages</button>
+            <button id='practice-send-btn' class='menu-btn'>Send Message</button>
+          </div>
+          <div style='color:#aaa; font-size:1.1em;'>Practice your Morse code skills by receiving and sending messages.</div>
+        `;
+        document.body.appendChild(telegraph);
+
+        // Send Message modal logic
+        document.getElementById('practice-send-btn').onclick = function() {
+          if (document.getElementById('practice-send-modal')) return;
+          const sendModal = document.createElement('div');
+          sendModal.id = 'practice-send-modal';
+          sendModal.style.position = 'fixed';
+          sendModal.style.top = '50%';
+          sendModal.style.left = '50%';
+          sendModal.style.transform = 'translate(-50%, -50%)';
+          sendModal.style.background = '#292929';
+          sendModal.style.border = '2px solid #ffb300';
+          sendModal.style.borderRadius = '10px';
+          sendModal.style.padding = '2em';
+          sendModal.style.zIndex = '10020';
+          sendModal.style.minWidth = '340px';
+          sendModal.style.maxWidth = '90vw';
+          sendModal.style.maxHeight = '70vh';
+          sendModal.style.overflowY = 'auto';
+          sendModal.innerHTML = `
+            <button id='practice-send-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
+            <h3 style='color:#ffb300; margin-bottom:1em;'>Send Message (Telegraph)</h3>
+            <div id='practice-send-display' style='background:#222; color:#fff; border-radius:6px; padding:1em; min-height:2em; margin-bottom:1em; font-size:1.2em;'></div>
+            <div style='color:#aaa; font-size:1em;'>Use left/right mouse buttons to enter Morse code. Hold for dah, tap for dit.</div>
+          `;
+          document.body.appendChild(sendModal);
+          document.getElementById('practice-send-close-btn').onclick = () => {
+            // On close, store the most recent message if any
+            if (currentInput.trim().length > 0) {
+              const { setLastSentMessage } = require('./messagesManager');
+              setLastSentMessage({ morse: currentInput, timestamp: Date.now(), sender: 'player' });
+            }
+            sendModal.remove();
+          };
+
+          // Basic telegraph input logic
+
+          let currentInput = '';
+          const display = sendModal.querySelector('#practice-send-display');
+          display.textContent = '';
+
+          let ditInterval = null;
+          let dahInterval = null;
+          let spaceTimer = null;
+          let sendTimer = null;
+          let inputActive = false;
+          const SPACE_THRESHOLD = 800; // ms
+          const SEND_TIMEOUT = 2000; // ms
+          const DIT_HOLD_INTERVAL = 400; // ms (slower dit repeat)
+          const DAH_HOLD_INTERVAL = 400; // ms (slower dah repeat)
+          const { log } = require('./debugLogger');
+
+          function resetSpaceTimer() {
+            if (spaceTimer) clearTimeout(spaceTimer);
+            spaceTimer = setTimeout(() => {
+              currentInput += ' ';
+              display.textContent = currentInput;
+              log('[TelegraphInput] Inserted space (wordspace)');
+              resetSendTimer();
+            }, SPACE_THRESHOLD);
+          }
+
+          function resetSendTimer(showPopup = true) {
+            if (sendTimer) clearTimeout(sendTimer);
+            sendTimer = setTimeout(() => {
+              if (currentInput.trim().length > 0) {
+                const { setLastSentMessage } = require('./messagesManager');
+                setLastSentMessage({ morse: currentInput, timestamp: Date.now(), sender: 'player' });
+                log(`[TelegraphInput] Message sent: ${currentInput}`);
+                if (showPopup) {
+                  // Attempt to translate Morse to text
+                  let translated = '';
+                  try {
+                    translated = decodeMorseToText(currentInput);
+                  } catch(e) {}
+                  if (!translated || translated === '[Invalid]') {
+                    translated = '<span style="color:#f55">Invalid message</span>';
+                  }
+                  // Show notification (story mode style)
+                  const { showNotification } = require('./notification');
+                  let notifMsg = 'Message sent: ';
+                  notifMsg += translated.replace(/<[^>]+>/g, ''); // Remove HTML tags for notification
+                  showNotification(notifMsg, 'notification');
+                }
+                currentInput = '';
+                display.textContent = '';
+                inputActive = false;
+                display.classList.remove('active');
+              }
+            }, SEND_TIMEOUT);
+          }
+
+          // Click to activate/deactivate input
+          display.style.cursor = 'pointer';
+          display.title = 'Click to start entering Morse code';
+          display.classList.remove('active');
+          let activationTimer = null;
+          display.onclick = function() {
+            if (!inputActive) {
+              inputActive = true;
+              display.classList.add('active');
+              display.title = 'Entering Morse code...';
+              log('[TelegraphInput] Input activated');
+              // Start activation timeout: if no input, deactivate after SEND_TIMEOUT
+              if (activationTimer) clearTimeout(activationTimer);
+              activationTimer = setTimeout(() => {
+                if (inputActive && currentInput.trim().length === 0) {
+                  log('[TelegraphInput] Input deactivated by timeout (no input after activation)');
+                  inputActive = false;
+                  display.classList.remove('active');
+                  display.title = 'Click to start entering Morse code';
+                }
+              }, SEND_TIMEOUT);
+            } else {
+              // If already active, treat as user ending input early (reset, no popup)
+              log('[TelegraphInput] Input deactivated by user click');
+              if (sendTimer) clearTimeout(sendTimer);
+              if (activationTimer) clearTimeout(activationTimer);
+              currentInput = '';
+              display.textContent = '';
+              inputActive = false;
+              display.classList.remove('active');
+              display.title = 'Click to start entering Morse code';
+            }
+          };
+
+          // Prevent Morse input until activated
+
+          // Morse decoder (simple A-Z, 0-9, space)
+          function decodeMorseToText(morse) {
+            const MORSE_TABLE = {
+              '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E',
+              '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J',
+              '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O',
+              '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T',
+              '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z',
+              '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4',
+              '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9'
+            };
+            let text = '';
+            try {
+              morse = morse.trim();
+              if (!morse) return '[Invalid]';
+              // Split by wordspace (space)
+              const words = morse.split(' ');
+              for (const word of words) {
+                if (!word) { text += ' '; continue; }
+                // Split by letter (assume letters separated by 1 or more spaces)
+                let letters = word.match(/([.-]+)/g);
+                if (!letters) return '[Invalid]';
+                for (const l of letters) {
+                  text += MORSE_TABLE[l] || '?';
+                }
+                text += ' ';
+              }
+              text = text.trim();
+              if (!text || text.includes('?')) return '[Invalid]';
+              return text;
+            } catch(e) { return '[Invalid]'; }
+          }
+
+          // Mouse event handlers (left: dit, right: dah)
+          sendModal.addEventListener('mousedown', function(e) {
+            if (!inputActive) return;
+            // Cancel activation timer on first input
+            if (activationTimer) {
+              clearTimeout(activationTimer);
+              activationTimer = null;
+            }
+            if (e.button === 0) { // Left mouse: dits
+              if (ditInterval) return;
+              currentInput += '.';
+              display.textContent = currentInput;
+              log(`[TelegraphInput] Dit entered (tap/hold): ${currentInput}`);
+              try {
+                const audio = new Audio('Resources/Audio/dit.mp3');
+                audio.currentTime = 0;
+                audio.play();
+              } catch(e) {}
+              resetSpaceTimer();
+              resetSendTimer();
+              ditInterval = setInterval(() => {
+                currentInput += '.';
+                display.textContent = currentInput;
+                log(`[TelegraphInput] Dit entered (hold): ${currentInput}`);
+                try {
+                  const audio = new Audio('Resources/Audio/dit.mp3');
+                  audio.currentTime = 0;
+                  audio.play();
+                } catch(e) {}
+                resetSpaceTimer();
+                resetSendTimer();
+              }, 400);
+            } else if (e.button === 2) { // Right mouse: dahs
+              if (dahInterval) return;
+              currentInput += '-';
+              display.textContent = currentInput;
+              log(`[TelegraphInput] Dah entered (tap/hold): ${currentInput}`);
+              try {
+                const audio = new Audio('Resources/Audio/dah.mp3');
+                audio.currentTime = 0;
+                audio.play();
+              } catch(e) {}
+              resetSpaceTimer();
+              resetSendTimer();
+              dahInterval = setInterval(() => {
+                currentInput += '-';
+                display.textContent = currentInput;
+                log(`[TelegraphInput] Dah entered (hold): ${currentInput}`);
+                try {
+                  const audio = new Audio('Resources/Audio/dah.mp3');
+                  audio.currentTime = 0;
+                  audio.play();
+                } catch(e) {}
+                resetSpaceTimer();
+                resetSendTimer();
+              }, 400);
+            }
+          });
+          sendModal.addEventListener('mouseup', function(e) {
+            if (e.button === 0 && ditInterval) {
+              clearInterval(ditInterval);
+              ditInterval = null;
+              log('[TelegraphInput] Dit hold ended');
+            } else if (e.button === 2 && dahInterval) {
+              clearInterval(dahInterval);
+              dahInterval = null;
+              log('[TelegraphInput] Dah hold ended');
+            }
+          });
+          // Prevent context menu on right click
+          sendModal.addEventListener('contextmenu', e => e.preventDefault());
+
+          sendModal.tabIndex = 0; // Make modal focusable for keyboard events
+          sendModal.focus();
+        };
+
+        // Set messagesManager to practice mode
+        try { require('./messagesManager').setMode('practice'); } catch(e) {}
+
+        // Incoming messages modal logic
+        document.getElementById('practice-incoming-btn').onclick = function() {
+          if (document.getElementById('practice-incoming-modal')) return;
+          const { log } = require('./debugLogger');
+          log('[PracticeMode] Incoming messages popup opened');
+          const modal = document.createElement('div');
+          modal.id = 'practice-incoming-modal';
+          modal.style.position = 'fixed';
+          modal.style.top = '50%';
+          modal.style.left = '50%';
+          modal.style.transform = 'translate(-50%, -50%)';
+          modal.style.background = '#292929';
+          modal.style.border = '2px solid #ffb300';
+          modal.style.borderRadius = '10px';
+          modal.style.padding = '2em';
+          modal.style.zIndex = '10020';
+          modal.style.minWidth = '340px';
+          modal.style.maxWidth = '90vw';
+          modal.style.maxHeight = '70vh';
+          modal.style.overflowY = 'auto';
+          modal.innerHTML = `
+            <button id='practice-incoming-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
+            <h3 style='color:#ffb300; margin-bottom:1em;'>Incoming Messages</h3>
+            <div id='practice-incoming-list' style='margin-top:1em;'></div>
+          `;
+          document.body.appendChild(modal);
+          // Populate messages
+          try {
+            const { getUndecodedMessages, countMessages, debugAllMessages } = require('./messagesManager');
+            countMessages(); // This will log the count
+            debugAllMessages(); // Log all messages for debugging
+            const msgs = getUndecodedMessages();
+            const { log } = require('./debugLogger');
+            log(`[PracticeMode] Undecoded messages count: ${msgs.length}`);
+            const list = modal.querySelector('#practice-incoming-list');
+            if (msgs.length === 0) {
+              list.innerHTML = `<div style='color:#888;'>No new messages.</div>`;
+            } else {
+              list.innerHTML = msgs.map(m => {
+                let display = m.encryptedText;
+                if (!display && m.morse) display = m.morse;
+                if (!display && m.text) display = m.text;
+                if (!display) display = '[Encrypted Morse Message]';
+                return `<div style='margin-bottom:1em; background:#222; color:#fff; border-radius:6px; padding:1em; box-shadow:0 1px 4px #000;'>${display}</div>`;
+              }).join('');
+            }
+          } catch(e) {}
+          document.getElementById('practice-incoming-close-btn').onclick = () => modal.remove();
+        };
+
+        // Pause popup for practice mode is now handled by the global Escape handler
+      };
+      // No local Escape handler; global handler manages overlays
+    };
+    document.getElementById('menu-settings-btn').onclick = () => showSettingsMenu('main');
   } else {
     menu.style.display = 'flex';
   }
@@ -101,7 +496,12 @@ function showMainMenu() {
       settings.style.flexDirection = 'column';
       settings.style.alignItems = 'center';
       settings.style.justifyContent = 'center';
-      settings.style.zIndex = '10001';
+      // Raise z-index if opened from practice mode so it appears above telegraph UI
+      if (_settingsReturnContext === 'practice-pause') {
+        settings.style.zIndex = '10020';
+      } else {
+        settings.style.zIndex = '10001';
+      }
       settings.innerHTML = `
         <button id='settings-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
         <h2 style='color:#ffb300; margin-bottom:2em;'>Settings</h2>
@@ -110,14 +510,19 @@ function showMainMenu() {
       document.body.appendChild(settings);
       styleMenuButtons();
       document.getElementById('settings-close-btn').onclick = () => {
-        settings.style.display = 'none';
-        if (_settingsReturnContext === 'pause') {
-          showPausePopup();
-        } else {
-          showMainMenu();
-        }
+        const { log } = require('./debugLogger');
+        log('[SettingsMenu] Settings close button clicked, return context: ' + _settingsReturnContext);
+        // Simulate Escape key press so global handler manages overlays
+        const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+        document.dispatchEvent(escEvent);
       };
     } else {
+      // Raise z-index if opened from practice mode so it appears above telegraph UI
+      if (_settingsReturnContext === 'practice-pause') {
+        settings.style.zIndex = '10020';
+      } else {
+        settings.style.zIndex = '10001';
+      }
       settings.style.display = 'flex';
     }
 }
@@ -156,6 +561,8 @@ function showPausePopup() {
       const { getGameStateForSave } = require('./gameStateManager');
       saveGame(getGameStateForSave());
     } catch (e) { /* ignore for now */ }
+    const { log } = require('./debugLogger');
+    log('[PausePopup] Returning to main menu');
     popup.remove();
     showMainMenu();
   };
@@ -171,6 +578,7 @@ function hideAllSections() {
     if (el) el.style.display = 'none';
   });
   // Optionally hide game UI here if needed
+  // (handled in showMainMenu/startGame)
 }
 
 function styleMenuButtons() {
@@ -196,27 +604,149 @@ function styleMenuButtons() {
 let inGame = false;
 function setInGame(val) { inGame = val; }
 document.addEventListener('keydown', e => {
+    const practiceSendModal = document.getElementById('practice-send-modal');
+  const practiceIncomingModal = document.getElementById('practice-incoming-modal');
+  const practiceOverlay = document.getElementById('practice-overlay');
+  const practicePausePopup = document.getElementById('practice-pause-popup');
+  const telegraphUI = document.getElementById('practice-telegraph-ui');
+  const { log } = require('./debugLogger');
   const pausePopup = document.getElementById('pause-popup');
   const settingsMenu = document.getElementById('settings-menu');
   const storyPopup = document.getElementById('story-popup');
   if (e.key === 'Escape') {
+    if (practiceSendModal) {
+      log('[ESC] Closing practice send message modal');
+      practiceSendModal.remove();
+      return;
+    }
     if (storyPopup && storyPopup.style.display !== 'none') {
+      log('[ESC] Closing story popup');
       storyPopup.remove();
-    } else if (settingsMenu && settingsMenu.style.display !== 'none') {
-      // If settings menu is open, close it (like X button)
+      return;
+    }
+    if (settingsMenu && settingsMenu.style.display !== 'none') {
+      log('[ESC] Closing settings menu, return context: ' + _settingsReturnContext);
       settingsMenu.style.display = 'none';
       if (_settingsReturnContext === 'pause') {
+        log('[ESC] Returning to pause popup');
         showPausePopup();
+      } else if (_settingsReturnContext === 'practice-pause') {
+        log('[ESC] Returning to practice pause popup');
+        // Reopen practice pause popup if needed
+        if (!practicePausePopup) {
+          let popup = document.createElement('div');
+          popup.id = 'practice-pause-popup';
+          popup.style.position = 'fixed';
+          popup.style.top = '50%';
+          popup.style.left = '50%';
+          popup.style.transform = 'translate(-50%, -50%)';
+          popup.style.background = '#222';
+          popup.style.border = '2px solid #ffb300';
+          popup.style.borderRadius = '10px';
+          popup.style.padding = '2em';
+          popup.style.zIndex = '10020';
+          popup.style.minWidth = '320px';
+          popup.style.boxShadow = '0 0 24px #000';
+          popup.innerHTML = `
+            <button id='practice-pause-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
+            <h2 style='color:#ffb300; margin-bottom:1em;'>Paused</h2>
+            <button id='practice-pause-settings-btn' class='menu-btn'>Settings</button>
+            <button id='practice-pause-menu-btn' class='menu-btn'>Return to Menu</button>
+          `;
+          document.body.appendChild(popup);
+          styleMenuButtons();
+          document.getElementById('practice-pause-settings-btn').onclick = () => {
+            log('[PracticePause] Settings button clicked');
+            popup.remove();
+            showSettingsMenu('practice-pause');
+          };
+          document.getElementById('practice-pause-menu-btn').onclick = () => {
+            popup.remove();
+            showMainMenu();
+            if (telegraphUI) telegraphUI.remove();
+          };
+          document.getElementById('practice-pause-close-btn').onclick = () => {
+            popup.remove();
+          };
+        }
       } else {
+        log('[ESC] Returning to main menu');
         showMainMenu();
       }
-    } else if (pausePopup && pausePopup.style.display !== 'none') {
-      // If pause popup is open and settings is not, close pause popup
-      pausePopup.remove();
-    } else if (inGame && (!pausePopup || pausePopup.style.display === 'none')) {
-      // If in game and pause popup is not open, open it
-      showPausePopup();
+      return;
     }
+    if (pausePopup && pausePopup.style.display !== 'none') {
+      log('[ESC] Closing pause popup');
+      pausePopup.remove();
+      return;
+    }
+    if (practicePausePopup && practicePausePopup.style.display !== 'none') {
+      log('[ESC] Closing practice pause popup');
+      practicePausePopup.remove();
+      return;
+    }
+    if (practiceIncomingModal && practiceIncomingModal.style.display !== 'none') {
+      log('[ESC] Closing practice incoming messages modal');
+      practiceIncomingModal.remove();
+      return;
+    }
+    if (practiceOverlay && practiceOverlay.style.display !== 'none') {
+      log('[ESC] Closing practice overlay');
+      practiceOverlay.remove();
+      log('[ESC] Returning to main menu');
+      showMainMenu();
+      return;
+    }
+    if (telegraphUI) {
+      // If telegraph UI is open and no overlays, open practice pause popup
+      log('[ESC] Opening practice pause popup from telegraph UI');
+      // Only open if not already open
+      if (!document.getElementById('practice-pause-popup')) {
+        let popup = document.createElement('div');
+        popup.id = 'practice-pause-popup';
+        popup.style.position = 'fixed';
+        popup.style.top = '50%';
+        popup.style.left = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+        popup.style.background = '#222';
+        popup.style.border = '2px solid #ffb300';
+        popup.style.borderRadius = '10px';
+        popup.style.padding = '2em';
+        popup.style.zIndex = '10020';
+        popup.style.minWidth = '320px';
+        popup.style.boxShadow = '0 0 24px #000';
+        popup.innerHTML = `
+          <button id='practice-pause-close-btn' style='position:absolute; top:10px; right:14px; background:none; border:none; color:#ffb300; font-size:1.5em; font-weight:bold; cursor:pointer;' title='Close'>&times;</button>
+          <h2 style='color:#ffb300; margin-bottom:1em;'>Paused</h2>
+          <button id='practice-pause-settings-btn' class='menu-btn'>Settings</button>
+          <button id='practice-pause-menu-btn' class='menu-btn'>Return to Menu</button>
+        `;
+        document.body.appendChild(popup);
+        styleMenuButtons();
+        document.getElementById('practice-pause-settings-btn').onclick = () => {
+          log('[PracticePause] Settings button clicked');
+          popup.remove();
+          showSettingsMenu('practice-pause');
+        };
+        document.getElementById('practice-pause-menu-btn').onclick = () => {
+          const { log } = require('./debugLogger');
+          log('[PracticePausePopup] Returning to main menu');
+          popup.remove();
+          showMainMenu();
+          if (telegraphUI) telegraphUI.remove();
+        };
+        document.getElementById('practice-pause-close-btn').onclick = () => {
+          popup.remove();
+        };
+      }
+      return;
+    }
+    if (inGame && (!pausePopup || pausePopup.style.display === 'none')) {
+      log('[ESC] Opening pause popup');
+      showPausePopup();
+      return;
+    }
+    log('[ESC] No action taken');
   }
 });
 

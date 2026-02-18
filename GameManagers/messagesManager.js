@@ -1,3 +1,61 @@
+// Holds the most recent message sent by the player (for practice or story mode)
+let lastSentMessage = null;
+
+/**
+ * Set the most recent sent message (telegraph input)
+ * @param {object} messageObj - The message object (should include text, morse, etc.)
+ */
+function setLastSentMessage(messageObj) {
+  lastSentMessage = messageObj;
+  const { log } = require('./debugLogger');
+  log('[setLastSentMessage] Message set:', JSON.stringify(messageObj));
+}
+
+/**
+ * Get the most recent sent message
+ */
+function getLastSentMessage() {
+  return lastSentMessage;
+}
+/**
+ * Log all messages in memory for debugging
+ */
+function debugAllMessages() {
+  const { log } = require('./debugLogger');
+  if (!messages || messages.length === 0) {
+    log('[debugAllMessages] No messages in memory.');
+    return;
+  }
+  log(`[debugAllMessages] Dumping all ${messages.length} messages:`);
+  messages.forEach((m, i) => {
+    log(`[${i}]`, JSON.stringify(m));
+  });
+}
+/**
+ * Get the count of all messages in memory
+ */
+function countMessages() {
+  const { log } = require('./debugLogger');
+  log(`[countMessages] There are ${messages.length} messages in memory.`);
+}
+
+// Mode: 'story' or 'practice'
+let _mode = 'story';
+function setMode(mode) { _mode = mode; }
+function getMode() { return _mode; }
+
+// Get only undecoded messages (for practice mode)
+function getUndecodedMessages() {
+  return getMessages().filter(m => !m.decrypted);
+}
+
+module.exports = {
+  ...module.exports,
+  setMode,
+  getMode,
+  getUndecodedMessages,
+  countMessages
+};
 /**
  * Clear all messages
  */
@@ -519,7 +577,7 @@ function addMessage(input) {
     throw new Error('Invalid input to addMessage');
   }
   messages.push(messageObj);
-  log(`[MorseMessage] Added: id=${messageObj.id}, text="${messageObj.text}", sender=${messageObj.sender}`);
+  countMessages();
   return messageObj;
 }
 
@@ -603,5 +661,12 @@ module.exports = {
   decryptMessage,
   decryptHelper,
   getMessages,
-  clearMessages
+  clearMessages,
+  setMode,
+  getMode,
+  getUndecodedMessages,
+  countMessages,
+  debugAllMessages,
+  setLastSentMessage,
+  getLastSentMessage
 };
