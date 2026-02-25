@@ -1,11 +1,11 @@
 {
-  "currentRoom": "living room",
-  "basementDoorState": "locked",
-  "breakerPosition": "off",
+  "currentRoom": "basement",
+  "basementDoorState": "unlocked",
+  "breakerPosition": "on",
   "inventory": [
     [
-      null,
-      null,
+      "Small Brass Key",
+      "Flashlight",
       null,
       null,
       null
@@ -42,11 +42,18 @@
   "messages": [
     {
       "id": 1,
-      "text": "CQ CQ CQ DE WGN WGN K",
+      "text": "CQ DE KQHP",
       "encrypted": true,
+      "sender": "",
+      "timestamp": "2026-02-25T21:24:45.298Z"
+    },
+    {
+      "id": 2,
+      "text": "CQ CQ CQ DE WGN WGN K",
+      "encrypted": false,
       "sender": "test",
       "timestamp": "2026-01-21T12:00:00Z"
     }
   ],
-  "telegraphAvailable": false
+  "telegraphAvailable": true
 }

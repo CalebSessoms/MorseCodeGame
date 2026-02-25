@@ -1,3 +1,12 @@
+const { log } = require('./debugLogger');
+// ...existing code...
+let getRandomMessage;
+try {
+  ({ getRandomMessage } = require('./arcade.js'));
+  log('[Require] arcade.js loaded successfully');
+} catch (err) {
+  log('[Require] arcade.js failed to load:', err);
+}
 // menuManager.js
 // Handles main menu, settings, and pause popup logic
 
@@ -124,29 +133,19 @@ function showMainMenu() {
       };
       // When a level is selected, open telegraph UI and close overlay
       document.getElementById('practice-level-1').onclick = function() {
-        // Add the first message from the DB to messagesManager if not already present
+        // On practice mode launch, generate and add a random message, and notify the user
         try {
-          const { log } = require('./debugLogger');
-          log('[PracticeMode] Starting practice mode, adding first message from DB');
-          const messagesManager = require('./messagesManager');
-          const morseMessagesDB = require('../DataBases/morseMessages.db');
-          const msgs = messagesManager.getMessages();
-          if (msgs.length === 0 && morseMessagesDB.length > 0) {
-            let msg = { ...morseMessagesDB[0] };
-            msg.encrypted = true;
-            msg.decrypted = false;
-            if (!msg.symbols && msg.text) {
-              // Simple Morse conversion: dot for A-M, dash for N-Z, space for space
-              msg.symbols = Array.from(msg.text).map(ch => {
-                if (ch === ' ') return { type: 'wordspace' };
-                if ('ABCDEFGHIJKLM'.includes(ch.toUpperCase())) return { type: 'dit' };
-                if ('NOPQRSTUVWXYZ'.includes(ch.toUpperCase())) return { type: 'dah' };
-                return { type: 'space' };
-              });
-            }
-            messagesManager.addMessage(msg);
+          log('[PracticeMode] Starting practice mode, generating and adding first random message');
+          const { getMessages, addMessage } = require('./messagesManager');
+          const { showNotification } = require('./notification');
+          const msgs = getMessages();
+          if (msgs.length === 0 && getRandomMessage) {
+            const randomMsg = getRandomMessage(1); // Level 1
+            addMessage(randomMsg);
+            showNotification('Practice message received! Check your incoming messages.', 'achievement');
+            log('[PracticeMode] Random message added and user notified.');
           }
-        } catch(e) {}
+        } catch(e) { log('[PracticeMode] Error adding random message:', e); }
         overlay.remove();
         // Hide menu and game area, show only telegraph UI as a full screen
         const menu = document.getElementById('main-menu');
@@ -178,6 +177,7 @@ function showMainMenu() {
           <div style='color:#aaa; font-size:1.1em;'>Practice your Morse code skills by receiving and sending messages.</div>
         `;
         document.body.appendChild(telegraph);
+        styleMenuButtons();
 
         // Send Message modal logic
         document.getElementById('practice-send-btn').onclick = function() {
@@ -222,9 +222,11 @@ function showMainMenu() {
           let ditInterval = null;
           let dahInterval = null;
           let spaceTimer = null;
+          let letterSpaceTimer = null;
           let sendTimer = null;
           let inputActive = false;
           const SPACE_THRESHOLD = 800; // ms
+                    const LETTER_SPACE_THRESHOLD = Math.round(SPACE_THRESHOLD * 3 / 7); // ~3/7 ratio for letter spacing
           const SEND_TIMEOUT = 2000; // ms
           const DIT_HOLD_INTERVAL = 400; // ms (slower dit repeat)
           const DAH_HOLD_INTERVAL = 400; // ms (slower dah repeat)
@@ -233,11 +235,21 @@ function showMainMenu() {
           function resetSpaceTimer() {
             if (spaceTimer) clearTimeout(spaceTimer);
             spaceTimer = setTimeout(() => {
-              currentInput += ' ';
+              currentInput += '   ';
               display.textContent = currentInput;
               log('[TelegraphInput] Inserted space (wordspace)');
               resetSendTimer();
             }, SPACE_THRESHOLD);
+          }
+
+          function resetLetterSpaceTimer() {
+            if (letterSpaceTimer) clearTimeout(letterSpaceTimer);
+            letterSpaceTimer = setTimeout(() => {
+              currentInput += ' ';
+              display.textContent = currentInput;
+              log('[TelegraphInput] Inserted space (letterspace)');
+              resetSendTimer();
+            }, LETTER_SPACE_THRESHOLD);
           }
 
           function resetSendTimer(showPopup = true) {
@@ -357,7 +369,7 @@ function showMainMenu() {
                 audio.currentTime = 0;
                 audio.play();
               } catch(e) {}
-              resetSpaceTimer();
+              resetLetterSpaceTimer();
               resetSendTimer();
               ditInterval = setInterval(() => {
                 currentInput += '.';
@@ -368,7 +380,7 @@ function showMainMenu() {
                   audio.currentTime = 0;
                   audio.play();
                 } catch(e) {}
-                resetSpaceTimer();
+                resetLetterSpaceTimer();
                 resetSendTimer();
               }, 400);
             } else if (e.button === 2) { // Right mouse: dahs
@@ -381,7 +393,7 @@ function showMainMenu() {
                 audio.currentTime = 0;
                 audio.play();
               } catch(e) {}
-              resetSpaceTimer();
+              resetLetterSpaceTimer();
               resetSendTimer();
               dahInterval = setInterval(() => {
                 currentInput += '-';
@@ -392,7 +404,7 @@ function showMainMenu() {
                   audio.currentTime = 0;
                   audio.play();
                 } catch(e) {}
-                resetSpaceTimer();
+                resetLetterSpaceTimer();
                 resetSendTimer();
               }, 400);
             }
@@ -421,7 +433,6 @@ function showMainMenu() {
         // Incoming messages modal logic
         document.getElementById('practice-incoming-btn').onclick = function() {
           if (document.getElementById('practice-incoming-modal')) return;
-          const { log } = require('./debugLogger');
           log('[PracticeMode] Incoming messages popup opened');
           const modal = document.createElement('div');
           modal.id = 'practice-incoming-modal';
@@ -450,7 +461,6 @@ function showMainMenu() {
             countMessages(); // This will log the count
             debugAllMessages(); // Log all messages for debugging
             const msgs = getUndecodedMessages();
-            const { log } = require('./debugLogger');
             log(`[PracticeMode] Undecoded messages count: ${msgs.length}`);
             const list = modal.querySelector('#practice-incoming-list');
             if (msgs.length === 0) {
@@ -510,7 +520,6 @@ function showMainMenu() {
       document.body.appendChild(settings);
       styleMenuButtons();
       document.getElementById('settings-close-btn').onclick = () => {
-        const { log } = require('./debugLogger');
         log('[SettingsMenu] Settings close button clicked, return context: ' + _settingsReturnContext);
         // Simulate Escape key press so global handler manages overlays
         const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
@@ -561,7 +570,6 @@ function showPausePopup() {
       const { getGameStateForSave } = require('./gameStateManager');
       saveGame(getGameStateForSave());
     } catch (e) { /* ignore for now */ }
-    const { log } = require('./debugLogger');
     log('[PausePopup] Returning to main menu');
     popup.remove();
     showMainMenu();
@@ -609,7 +617,7 @@ document.addEventListener('keydown', e => {
   const practiceOverlay = document.getElementById('practice-overlay');
   const practicePausePopup = document.getElementById('practice-pause-popup');
   const telegraphUI = document.getElementById('practice-telegraph-ui');
-  const { log } = require('./debugLogger');
+  // ...existing code...
   const pausePopup = document.getElementById('pause-popup');
   const settingsMenu = document.getElementById('settings-menu');
   const storyPopup = document.getElementById('story-popup');
@@ -729,7 +737,6 @@ document.addEventListener('keydown', e => {
           showSettingsMenu('practice-pause');
         };
         document.getElementById('practice-pause-menu-btn').onclick = () => {
-          const { log } = require('./debugLogger');
           log('[PracticePausePopup] Returning to main menu');
           popup.remove();
           showMainMenu();
