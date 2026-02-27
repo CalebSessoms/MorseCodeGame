@@ -221,35 +221,41 @@ function showMainMenu() {
 
           let ditInterval = null;
           let dahInterval = null;
-          let spaceTimer = null;
-          let letterSpaceTimer = null;
-          let sendTimer = null;
+          let spacingTimer = null;
+          let lastInputTime = null;
+          let pauseTimeout = null;
           let inputActive = false;
-          const SPACE_THRESHOLD = 800; // ms
-                    const LETTER_SPACE_THRESHOLD = Math.round(SPACE_THRESHOLD * 3 / 7); // ~3/7 ratio for letter spacing
-          const SEND_TIMEOUT = 2000; // ms
+          const LETTER_SPACE_THRESHOLD = 400; // ms (short pause)
+          const WORD_SPACE_THRESHOLD = 800; // ms (medium pause)
+          const SEND_TIMEOUT = 2000; // ms (long pause)
           const DIT_HOLD_INTERVAL = 400; // ms (slower dit repeat)
           const DAH_HOLD_INTERVAL = 400; // ms (slower dah repeat)
           const { log } = require('./debugLogger');
 
-          function resetSpaceTimer() {
-            if (spaceTimer) clearTimeout(spaceTimer);
-            spaceTimer = setTimeout(() => {
-              currentInput += '   ';
-              display.textContent = currentInput;
-              log('[TelegraphInput] Inserted space (wordspace)');
-              resetSendTimer();
-            }, SPACE_THRESHOLD);
-          }
-
-          function resetLetterSpaceTimer() {
-            if (letterSpaceTimer) clearTimeout(letterSpaceTimer);
-            letterSpaceTimer = setTimeout(() => {
-              currentInput += ' ';
-              display.textContent = currentInput;
-              log('[TelegraphInput] Inserted space (letterspace)');
-              resetSendTimer();
-            }, LETTER_SPACE_THRESHOLD);
+          function resetSpacingTimer() {
+            if (pauseTimeout) clearTimeout(pauseTimeout);
+            pauseTimeout = setTimeout(() => {
+              if (currentInput.trim().length > 0) {
+                const { setLastSentMessage } = require('./messagesManager');
+                setLastSentMessage({ morse: currentInput, timestamp: Date.now(), sender: 'player' });
+                log(`[TelegraphInput] Message sent: ${currentInput}`);
+                let translated = '';
+                try {
+                  translated = decodeMorseToText(currentInput);
+                } catch(e) {}
+                if (!translated || translated === '[Invalid]') {
+                  translated = '<span style="color:#f55">Invalid message</span>';
+                }
+                const { showNotification } = require('./notification');
+                let notifMsg = 'Message sent: ';
+                notifMsg += translated.replace(/<[^>]+>/g, '');
+                showNotification(notifMsg, 'notification');
+                currentInput = '';
+                display.textContent = '';
+                inputActive = false;
+                display.classList.remove('active');
+              }
+            }, SEND_TIMEOUT);
           }
 
           function resetSendTimer(showPopup = true) {
@@ -333,14 +339,14 @@ function showMainMenu() {
             try {
               morse = morse.trim();
               if (!morse) return '[Invalid]';
-              // Split by wordspace (space)
-              const words = morse.split(' ');
+              // Split by wordspace (three spaces)
+              const words = morse.split('   ');
               for (const word of words) {
                 if (!word) { text += ' '; continue; }
-                // Split by letter (assume letters separated by 1 or more spaces)
-                let letters = word.match(/([.-]+)/g);
-                if (!letters) return '[Invalid]';
+                // Split by letter (single space)
+                let letters = word.split(' ');
                 for (const l of letters) {
+                  if (!l) continue;
                   text += MORSE_TABLE[l] || '?';
                 }
                 text += ' ';
@@ -359,6 +365,44 @@ function showMainMenu() {
               clearTimeout(activationTimer);
               activationTimer = null;
             }
+            if (pauseTimeout) clearTimeout(pauseTimeout);
+            // Check time since last input
+            const now = Date.now();
+            if (lastInputTime) {
+              const elapsed = now - lastInputTime;
+              if (elapsed >= SEND_TIMEOUT) {
+                // Send message
+                if (currentInput.trim().length > 0) {
+                  const { setLastSentMessage } = require('./messagesManager');
+                  setLastSentMessage({ morse: currentInput, timestamp: Date.now(), sender: 'player' });
+                  log(`[TelegraphInput] Message sent: ${currentInput}`);
+                  let translated = '';
+                  try {
+                    translated = decodeMorseToText(currentInput);
+                  } catch(e) {}
+                  if (!translated || translated === '[Invalid]') {
+                    translated = '<span style="color:#f55">Invalid message</span>';
+                  }
+                  const { showNotification } = require('./notification');
+                  let notifMsg = 'Message sent: ';
+                  notifMsg += translated.replace(/<[^>]+>/g, '');
+                  showNotification(notifMsg, 'notification');
+                  currentInput = '';
+                  display.textContent = '';
+                  inputActive = false;
+                  display.classList.remove('active');
+                }
+              } else if (elapsed >= WORD_SPACE_THRESHOLD) {
+                currentInput += '   ';
+                display.textContent = currentInput;
+                log('[TelegraphInput] Inserted space (wordspace)');
+              } else if (elapsed >= LETTER_SPACE_THRESHOLD) {
+                currentInput += ' ';
+                display.textContent = currentInput;
+                log('[TelegraphInput] Inserted space (letterspace)');
+              }
+            }
+            lastInputTime = now;
             if (e.button === 0) { // Left mouse: dits
               if (ditInterval) return;
               currentInput += '.';
@@ -369,8 +413,6 @@ function showMainMenu() {
                 audio.currentTime = 0;
                 audio.play();
               } catch(e) {}
-              resetLetterSpaceTimer();
-              resetSendTimer();
               ditInterval = setInterval(() => {
                 currentInput += '.';
                 display.textContent = currentInput;
@@ -380,8 +422,6 @@ function showMainMenu() {
                   audio.currentTime = 0;
                   audio.play();
                 } catch(e) {}
-                resetLetterSpaceTimer();
-                resetSendTimer();
               }, 400);
             } else if (e.button === 2) { // Right mouse: dahs
               if (dahInterval) return;
@@ -393,8 +433,6 @@ function showMainMenu() {
                 audio.currentTime = 0;
                 audio.play();
               } catch(e) {}
-              resetLetterSpaceTimer();
-              resetSendTimer();
               dahInterval = setInterval(() => {
                 currentInput += '-';
                 display.textContent = currentInput;
@@ -404,10 +442,9 @@ function showMainMenu() {
                   audio.currentTime = 0;
                   audio.play();
                 } catch(e) {}
-                resetLetterSpaceTimer();
-                resetSendTimer();
               }, 400);
             }
+            resetSpacingTimer();
           });
           sendModal.addEventListener('mouseup', function(e) {
             if (e.button === 0 && ditInterval) {
